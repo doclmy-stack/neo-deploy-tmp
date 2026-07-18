@@ -1,0 +1,163 @@
+<%- include('header') %>
+<% var pageTitle = 'Premium'; %>
+
+<section class="page-header">
+  <div class="container">
+    <h1>🔓 Toutes les offres</h1>
+    <p>Choisis ce qui te convient : mensuel sans engagement, ou annuel avec réduction.</p>
+  </div>
+</section>
+
+<section class="container">
+
+  <!-- Gratuit -->
+  <div class="tier-block">
+    <h2 class="tier-title">🆓 Découverte</h2>
+    <div class="pricing-grid pricing-grid-single">
+      <div class="price-card">
+        <div class="price-tag">Gratuit</div>
+        <h3>Pour commencer</h3>
+        <p class="price-amount">0 €</p>
+        <p class="price-sub">Toujours gratuit</p>
+        <ul>
+          <li>✅ 2 premières leçons de chaque module grand public</li>
+          <li>✅ Quiz d'évaluation</li>
+          <li>✅ Multilingue (FR · EN · RU · ZH · AR)</li>
+          <li>❌ Leçons avancées verrouillées</li>
+          <li>❌ Contenu professionnel</li>
+        </ul>
+        <% if (!user) { %>
+          <a href="/register" class="btn btn-outline btn-full">Créer un compte</a>
+        <% } else { %>
+          <span class="badge badge-free">Plan actuel si non abonné</span>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium grand public -->
+  <div class="tier-block">
+    <h2 class="tier-title">💎 Premium — Grand public</h2>
+    <p class="tier-sub">Toutes les leçons grand public, quiz illimités, futures vidéos incluses.</p>
+    <div class="pricing-grid">
+
+      <div class="price-card">
+        <div class="price-tag">Mensuel</div>
+        <h3>Premium mensuel</h3>
+        <p class="price-amount">9,90 €<small>/mois</small></p>
+        <p class="price-sub">Sans engagement · résiliation 1 clic</p>
+        <ul>
+          <li>✅ Accès complet au contenu grand public</li>
+          <li>✅ Quiz illimités · suivi de progression</li>
+          <li>✅ Futures vidéos incluses</li>
+        </ul>
+        <% if (user) { %>
+          <button class="btn btn-primary btn-full" onclick="buyOffer('premium_monthly')">S'abonner · 9,90 €/mois</button>
+        <% } else { %>
+          <a href="/register?redirect=/premium" class="btn btn-primary btn-full">Créer un compte</a>
+        <% } %>
+      </div>
+
+      <div class="price-card price-card-featured">
+        <div class="price-tag">⭐ Meilleur rapport</div>
+        <h3>Premium annuel</h3>
+        <p class="price-amount">95 €<small>/an</small></p>
+        <p class="price-sub">Soit 7,92 €/mois · <strong>-20 %</strong> vs mensuel</p>
+        <ul>
+          <li>✅ Tout le Premium mensuel</li>
+          <li>✅ 2 mois offerts sur l'année</li>
+          <li>✅ Prix bloqué 12 mois</li>
+        </ul>
+        <% if (user) { %>
+          <button class="btn btn-primary btn-full" onclick="buyOffer('premium_yearly')">S'abonner · 95 €/an</button>
+        <% } else { %>
+          <a href="/register?redirect=/premium" class="btn btn-primary btn-full">Créer un compte</a>
+        <% } %>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Pro -->
+  <div class="tier-block">
+    <h2 class="tier-title">🩺 Pro — Professionnels de santé</h2>
+    <p class="tier-sub">Sages-femmes · Médecins · Kinésithérapeutes. Inclut tout le contenu grand public + modules pro, fiches cliniques et certificats.</p>
+    <div class="pricing-grid">
+
+      <div class="price-card">
+        <div class="price-tag">Mensuel</div>
+        <h3>Pro mensuel</h3>
+        <p class="price-amount">24,90 €<small>/mois</small></p>
+        <p class="price-sub">Sans engagement · résiliation 1 clic</p>
+        <ul>
+          <li>✅ Tout le contenu grand public</li>
+          <li>✅ Modules pro (anatomie, échographie, Doppler)</li>
+          <li>✅ Fiches cliniques · protocoles</li>
+          <li>✅ Certificats de complétion</li>
+        </ul>
+        <% if (user) { %>
+          <button class="btn btn-primary btn-full" onclick="buyOffer('pro_monthly')">S'abonner · 24,90 €/mois</button>
+        <% } else { %>
+          <a href="/register?redirect=/premium" class="btn btn-primary btn-full">Créer un compte pro</a>
+        <% } %>
+      </div>
+
+      <div class="price-card price-card-featured">
+        <div class="price-tag">⭐ Meilleur rapport</div>
+        <h3>Pro annuel</h3>
+        <p class="price-amount">239 €<small>/an</small></p>
+        <p class="price-sub">Soit 19,92 €/mois · <strong>-20 %</strong> vs mensuel</p>
+        <ul>
+          <li>✅ Tout le Pro mensuel</li>
+          <li>✅ 2 mois offerts sur l'année</li>
+          <li>✅ Prix bloqué 12 mois</li>
+        </ul>
+        <% if (user) { %>
+          <button class="btn btn-primary btn-full" onclick="buyOffer('pro_yearly')">S'abonner · 239 €/an</button>
+        <% } else { %>
+          <a href="/register?redirect=/premium" class="btn btn-primary btn-full">Créer un compte pro</a>
+        <% } %>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="pricing-compare">
+    <h3>📊 Comparatif rapide</h3>
+    <table class="compare-table">
+      <thead>
+        <tr><th>Offre</th><th>Prix</th><th>€ / mois</th><th>Économie</th><th>Public</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Gratuit</td><td>0 €</td><td>0 €</td><td>—</td><td>Grand public</td></tr>
+        <tr><td>Premium mensuel</td><td>9,90 €/mois</td><td>9,90 €</td><td>—</td><td>Grand public</td></tr>
+        <tr class="row-featured"><td>Premium annuel</td><td>95 €/an</td><td>7,92 €</td><td>-20 %</td><td>Grand public</td></tr>
+        <tr><td>Pro mensuel</td><td>24,90 €/mois</td><td>24,90 €</td><td>—</td><td>Pro santé</td></tr>
+        <tr class="row-featured"><td>Pro annuel</td><td>239 €/an</td><td>19,92 €</td><td>-20 %</td><td>Pro santé</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="small-note">💡 <strong>Dev local</strong> : paiement simulé côté serveur pour tester les parcours. Stripe Checkout sera branché en Phase 2 (abonnements mensuel/annuel).</p>
+
+</section>
+
+<script>
+async function buyOffer(offer) {
+  const r = await fetch('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ offer })
+  });
+  const data = await r.json();
+  if (data.ok) {
+    const txt = '✅ Abonnement ' + data.tier + ' (' + data.interval + ') activé (démo). Prochain renouvellement le ' + new Date(data.until).toLocaleDateString();
+    alert(txt);
+    window.location = '<%= from %>';
+  } else {
+    alert('❌ ' + (data.error || 'erreur'));
+  }
+}
+</script>
+
+<%- include('footer') %>
