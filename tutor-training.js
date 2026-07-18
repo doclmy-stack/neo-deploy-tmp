@@ -25,12 +25,14 @@ module.exports = function ({ requireAuth } = {}) {
   const jsonBody = express.json({ limit: '256kb' });
 
   // ---- Chargement des modules (content/modules/*.json) ----
+  // Ignore les .bak et fichiers non-.json. Chaque module conserve son JSON brut ;
+  // le texte d'ancrage RAG est construit à la demande (cours complet + quiz).
   const MODULES = {};
   (function loadModules() {
     const dir = path.join(__dirname, 'content', 'modules');
     try {
       for (const f of fs.readdirSync(dir)) {
-        if (!f.endsWith('.json')) continue;
+        if (!f.endsWith('.json')) continue; // exclut .bak, .bak-*
         try {
           const m = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
           const id = m.id || f.replace(/\.json$/, '');
@@ -41,16 +43,36 @@ module.exports = function ({ requireAuth } = {}) {
     console.log('[tutor-training] modules charges:', Object.keys(MODULES).length);
   })();
 
-  // Construit le texte d'ancrage (RAG) d'un module, robuste au schéma exact
+  // Lit le cours COMPLET d'une leçon (fichiers markdown, comme la page leçon).
+  function lessonMarkdown(moduleId, lessonId) {
+    const candidates = [
+      path.join(__dirname, 'content', 'lessons', lessonId, 'index.md'),
+      path.join(__dirname, 'content', 'lessons', moduleId, lessonId + '.md')
+    ];
+    for (const c of candidates) {
+      try { if (fs.existsSync(c)) return fs.readFileSync(c, 'utf8'); } catch (_) {}
+    }
+    return '';
+  }
+
+  // Construit le texte d'ancrage (RAG) : description + cours complet de chaque
+  // leçon (markdown) + résumés + quiz avec explications. Tout ce que Neo connaît.
   function moduleText(m) {
     const parts = [`# ${m.title}`, m.description || ''];
-    const walk = (v) => {
-      if (typeof v === 'string') { if (v.trim()) parts.push(v.trim()); }
-      else if (Array.isArray(v)) v.forEach(walk);
-      else if (v && typeof v === 'object') Object.values(v).forEach(walk);
-    };
-    if (m.raw && m.raw.lessons) walk(m.raw.lessons);
-    return parts.join('\n').slice(0, 9000);
+    const raw = m.raw || {};
+    for (const l of (raw.lessons || [])) {
+      parts.push(`\n## ${l.title || l.id}`);
+      if (l.summary) parts.push(l.summary);
+      const md = lessonMarkdown(m.id, l.id);
+      if (md && md.trim()) parts.push(md.trim());
+    }
+    if (Array.isArray(raw.quiz) && raw.quiz.length) {
+      parts.push(`\n## Points clés (issus du quiz du module)`);
+      for (const q of raw.quiz) {
+        if (q && q.explanation) parts.push(`- ${q.question ? q.question + ' → ' : ''}${q.explanation}`);
+      }
+    }
+    return parts.join('\n').slice(0, 16000);
   }
 
   // ---- Auth / Premium (défensif sur la forme de session) ----
@@ -134,10 +156,11 @@ module.exports = function ({ requireAuth } = {}) {
     const p = profile(uid);
     const errs = jparse(p.recurring_errors, []);
     const system = [
-      `Tu es "Neo", le tuteur IA de la formation NeoHealth Training (gynécologie-obstétrique) pour un professionnel de santé.`,
-      p.name ? `L'apprenant s'appelle ${p.name} — tutoie-le et utilise son prénom parfois.` : `Tu ne connais pas encore le prénom de l'apprenant — demande-le une fois, poliement, puis retiens-le.`,
+      `Tu es le "Dr Neo", tuteur médical IA de la formation NeoHealth Training (gynécologie-obstétrique). Présente-toi comme "Dr Neo" au premier message.`,
+      p.name ? `L'apprenant s'appelle ${p.name} — tutoie-le et utilise son prénom parfois.` : `Tu ne connais pas encore le prénom de l'apprenant — demande-le UNE seule fois brièvement, puis retiens-le.`,
       `RÈGLE ABSOLUE (sécurité médicale) : réponds UNIQUEMENT à partir du CONTENU DU MODULE ci-dessous. Si l'information n'y est pas, dis-le clairement ("ce point n'est pas couvert dans ce module") et invite à consulter la leçon — n'invente JAMAIS de donnée clinique.`,
-      `Rôle : interroger l'apprenant sur ce module, expliquer simplement une leçon, ou jouer un cas — 2 à 5 phrases, UNE question à la fois, bienveillant et précis. Réponds dans la langue de l'apprenant (français par défaut).`,
+      `STYLE DIRECTIF : c'est TOI qui mènes la séance. Ne renvoie pas la balle par une question vague ("sur quoi veux-tu travailler ?"). Quand l'apprenant choisit un thème, propose immédiatement un mini-plan (ex : "OK, on couvre la contraception en 3 points : 1) hormonale, 2) DIU, 3) urgence. On commence par le point 1.") puis avance étape par étape, en posant UNE question ciblée à la fois pour le faire réviser. Enchaîne toi-même vers le point suivant quand c'est acquis.`,
+      `Ton : professionnel, chaleureux, précis — 2 à 5 phrases. Réponds dans la langue de l'apprenant (français par défaut).`,
       errs.length ? `Points déjà à retravailler : ${errs.join('; ')}.` : '',
       p.running_summary ? `MÉMOIRE (déjà vu — ne pas répéter) : ${p.running_summary}` : '',
       `=== CONTENU DU MODULE "${m.title}" ===`,
@@ -207,7 +230,7 @@ async function init(){let d;try{d=await j('/api/tutor/modules')}catch(e){$('app'
  const opts=d.modules.map(m=>'<option value="'+m.id+'">'+esc(m.title)+'</option>').join('');
  $('app').innerHTML='<select id="mod">'+opts+'</select><div class="card"><div class="chat" id="chat"></div></div>';
  MOD=d.modules[0].id;$('mod').onchange=e=>{MOD=e.target.value;$('chat').innerHTML='';add('neo','Nouveau module sélectionné. Pose-moi une question, ou dis « interroge-moi ».')};
- $('bar').style.display='block';add('neo','Bonjour ! Je suis Neo. Sur quel point de ce module veux-tu travailler ? (je peux t\\'interroger, ou t\\'expliquer une leçon)');$('q').focus();}
+ $('bar').style.display='block';add('neo','Bonjour, je suis le Dr Neo 👨‍⚕️. Dis-moi le thème que tu veux travailler dans ce module, et je te propose un plan puis je t\\'interroge point par point.');$('q').focus();}
 function add(role,txt){const c=$('chat');const d=document.createElement('div');d.className='msg '+(role==='me'?'me':'neo');d.textContent=txt;c.appendChild(d);window.scrollTo(0,document.body.scrollHeight)}
 async function send(){const q=$('q');const msg=q.value.trim();if(!msg)return;q.value='';add('me',msg);const c=$('chat');const w=document.createElement('div');w.className='msg neo';w.innerHTML='<span class=spin></span>';c.appendChild(w);
  try{const d=await j('/api/tutor/ask',{method:'POST',body:JSON.stringify({moduleId:MOD,message:msg})});w.remove();add('neo',d.reply)}catch(e){w.remove();add('neo',e.p?('🔒 '+e.m):('⚠️ '+(e.message||'erreur')))}}
