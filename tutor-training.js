@@ -106,16 +106,20 @@ module.exports = function ({ requireAuth } = {}) {
   }
 
   // ===================== ROUTES =====================
-  router.get('/api/tutor/modules', auth, (req, res) => {
+  // NB: pas de middleware requireAuth ici (il ferait une redirection 302 HTML qui
+  // casse le fetch JSON du front). On lit la session nous-mêmes et on répond
+  // TOUJOURS en JSON (401 = pas connecté, 402 = pas premium).
+  router.get('/api/tutor/modules', (req, res) => {
     const uid = getUserId(req);
     const u = uid ? getUser(uid) : null;
     res.json({
+      authenticated: !!u,
       premium: isPremium(u),
       modules: Object.values(MODULES).map(m => ({ id: m.id, title: m.title, description: m.description }))
     });
   });
 
-  router.post('/api/tutor/ask', auth, jsonBody, async (req, res) => {
+  router.post('/api/tutor/ask', jsonBody, async (req, res) => {
     const uid = getUserId(req);
     const u = uid ? getUser(uid) : null;
     if (!u) return res.status(401).json({ error: 'auth_required' });
@@ -197,8 +201,9 @@ a{color:var(--a)}</style></head><body><div class="w">
 const $=id=>document.getElementById(id);let MOD=null;
 async function j(u,o){const r=await fetch(u,Object.assign({headers:{'Content-Type':'application/json'},credentials:'same-origin'},o));if(r.status===401){throw{a:1}}if(r.status===402){throw{p:1,m:(await r.json()).message}}if(!r.ok){let e={};try{e=await r.json()}catch(_){}throw new Error(e.error||('HTTP '+r.status))}return r.json()}
 function esc(s){return String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-async function init(){let d;try{d=await j('/api/tutor/modules')}catch(e){if(e.a){$('app').innerHTML='<div class=card>Connecte-toi à Training d\\'abord. <a href="/">Accueil</a></div>';return}$('app').innerHTML='<div class=card>Erreur de chargement.</div>';return}
- if(!d.premium){$('app').innerHTML='<div class=card>🔒 Le <b>Tuteur IA</b> est réservé aux abonnés <b>Premium</b>.<br><br><a href="/">Passer à Premium</a></div>';return}
+async function init(){let d;try{d=await j('/api/tutor/modules')}catch(e){$('app').innerHTML='<div class=card>Erreur de chargement.</div>';return}
+ if(!d.authenticated){$('app').innerHTML='<div class=card>👤 Connecte-toi à Training pour utiliser le Tuteur.<br><br><a href="/login?redirect=/tutor">Se connecter</a></div>';return}
+ if(!d.premium){$('app').innerHTML='<div class=card>🔒 Le <b>Tuteur IA</b> est réservé aux abonnés <b>Premium</b>.<br><br><a href="/premium">Passer à Premium</a></div>';return}
  const opts=d.modules.map(m=>'<option value="'+m.id+'">'+esc(m.title)+'</option>').join('');
  $('app').innerHTML='<select id="mod">'+opts+'</select><div class="card"><div class="chat" id="chat"></div></div>';
  MOD=d.modules[0].id;$('mod').onchange=e=>{MOD=e.target.value;$('chat').innerHTML='';add('neo','Nouveau module sélectionné. Pose-moi une question, ou dis « interroge-moi ».')};
