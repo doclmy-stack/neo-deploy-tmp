@@ -81,14 +81,24 @@ module.exports = function ({ requireAuth } = {}) {
     return s.userId || (s.user && s.user.id) || s.uid || req.userId || null;
   }
   function getUser(uid) {
-    try { return db.prepare('SELECT id, name, plan, premium_until FROM users WHERE id = ?').get(uid); }
-    catch (_) { return null; }
+    try { return db.prepare('SELECT id, name, plan, premium_until, plan_interval FROM users WHERE id = ?').get(uid); }
+    catch (_) {
+      try { return db.prepare('SELECT id, name, plan, premium_until FROM users WHERE id = ?').get(uid); }
+      catch (_) { return null; }
+    }
   }
   function isPremium(u) {
     if (!u) return false;
     if (u.plan === 'premium' || u.plan === 'pro') return true;
     if (u.premium_until && new Date(u.premium_until) > new Date()) return true;
     return false;
+  }
+  // Le Tuteur IA est réservé aux abonnements mensuel/annuel.
+  // Le « à vie » (lifetime) donne accès au contenu mais PAS au tuteur.
+  function isTutorAllowed(u) {
+    if (!isPremium(u)) return false;
+    if (u && u.plan_interval === 'lifetime') return false;
+    return true;
   }
 
   // ---- IA (Anthropic Haiku ; fallback OpenAI) ----
@@ -136,7 +146,8 @@ module.exports = function ({ requireAuth } = {}) {
     const u = uid ? getUser(uid) : null;
     res.json({
       authenticated: !!u,
-      premium: isPremium(u),
+      premium: isTutorAllowed(u),
+      lifetime: !!(u && u.plan_interval === 'lifetime'),
       modules: Object.values(MODULES).map(m => ({ id: m.id, title: m.title, description: m.description }))
     });
   });
@@ -145,7 +156,8 @@ module.exports = function ({ requireAuth } = {}) {
     const uid = getUserId(req);
     const u = uid ? getUser(uid) : null;
     if (!u) return res.status(401).json({ error: 'auth_required' });
-    if (!isPremium(u)) return res.status(402).json({ error: 'premium_required', message: 'Le Tuteur IA est réservé aux abonnés Premium.' });
+    if (u.plan_interval === 'lifetime') return res.status(402).json({ error: 'lifetime_no_tutor', message: 'Le Tuteur IA est réservé aux abonnements mensuel et annuel (non inclus dans l\'offre à vie).' });
+    if (!isTutorAllowed(u)) return res.status(402).json({ error: 'premium_required', message: 'Le Tuteur IA est réservé aux abonnés Premium (mensuel ou annuel).' });
 
     const moduleId = String(req.body && req.body.moduleId || '');
     const message = String(req.body && req.body.message || '').trim();
@@ -226,7 +238,7 @@ async function j(u,o){const r=await fetch(u,Object.assign({headers:{'Content-Typ
 function esc(s){return String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 async function init(){let d;try{d=await j('/api/tutor/modules')}catch(e){$('app').innerHTML='<div class=card>Erreur de chargement.</div>';return}
  if(!d.authenticated){$('app').innerHTML='<div class=card>👤 Connecte-toi à Training pour utiliser le Tuteur.<br><br><a href="/login?redirect=/tutor">Se connecter</a></div>';return}
- if(!d.premium){$('app').innerHTML='<div class=card>🔒 Le <b>Tuteur IA</b> est réservé aux abonnés <b>Premium</b>.<br><br><a href="/premium">Passer à Premium</a></div>';return}
+ if(!d.premium){if(d.lifetime){$('app').innerHTML='<div class=card>💠 Ton offre <b>à vie</b> donne accès à tout le contenu, mais le <b>Tuteur IA</b> est réservé aux abonnements <b>mensuel / annuel</b>.<br><br><a href="/premium">Voir les abonnements</a></div>'}else{$('app').innerHTML='<div class=card>🔒 Le <b>Tuteur IA</b> est réservé aux abonnés <b>Premium</b> (mensuel ou annuel).<br><br><a href="/premium">Passer à Premium</a></div>'}return}
  const opts=d.modules.map(m=>'<option value="'+m.id+'">'+esc(m.title)+'</option>').join('');
  $('app').innerHTML='<select id="mod">'+opts+'</select><div class="card"><div class="chat" id="chat"></div></div>';
  MOD=d.modules[0].id;$('mod').onchange=e=>{MOD=e.target.value;$('chat').innerHTML='';add('neo','Nouveau module sélectionné. Pose-moi une question, ou dis « interroge-moi ».')};
