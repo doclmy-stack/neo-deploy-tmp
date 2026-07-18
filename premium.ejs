@@ -4,7 +4,7 @@
 <section class="page-header">
   <div class="container">
     <h1>🔓 Toutes les offres</h1>
-    <p>Choisis ce qui te convient : mensuel sans engagement, ou annuel avec réduction.</p>
+    <p>Choisis ce qui te convient : mensuel sans engagement, annuel avec réduction, ou accès à vie.</p>
   </div>
 </section>
 
@@ -38,7 +38,7 @@
   <!-- Premium grand public -->
   <div class="tier-block">
     <h2 class="tier-title">💎 Premium — Grand public</h2>
-    <p class="tier-sub">Toutes les leçons grand public, quiz illimités, futures vidéos incluses.</p>
+    <p class="tier-sub">Toutes les leçons grand public, quiz illimités, futures vidéos incluses. <strong>Tuteur IA « Dr Neo » inclus</strong> (mensuel &amp; annuel).</p>
     <div class="pricing-grid">
 
       <div class="price-card">
@@ -49,6 +49,7 @@
         <ul>
           <li>✅ Accès complet au contenu grand public</li>
           <li>✅ Quiz illimités · suivi de progression</li>
+          <li>🎓 <strong>Tuteur IA « Dr Neo »</strong></li>
           <li>✅ Futures vidéos incluses</li>
         </ul>
         <% if (user) { %>
@@ -65,6 +66,7 @@
         <p class="price-sub">Soit 7,92 €/mois · <strong>-20 %</strong> vs mensuel</p>
         <ul>
           <li>✅ Tout le Premium mensuel</li>
+          <li>🎓 <strong>Tuteur IA « Dr Neo »</strong></li>
           <li>✅ 2 mois offerts sur l'année</li>
           <li>✅ Prix bloqué 12 mois</li>
         </ul>
@@ -75,13 +77,30 @@
         <% } %>
       </div>
 
+      <div class="price-card">
+        <div class="price-tag">À vie</div>
+        <h3>Premium à vie</h3>
+        <p class="price-amount">199 €<small>/unique</small></p>
+        <p class="price-sub">Un paiement, accès permanent</p>
+        <ul>
+          <li>✅ Tout le Premium, à vie</li>
+          <li>✅ Toutes les mises à jour futures</li>
+          <li>❌ <strong>Tuteur IA non inclus</strong> (réservé mensuel/annuel)</li>
+        </ul>
+        <% if (user) { %>
+          <button class="btn btn-outline btn-full" onclick="buyOffer('premium_lifetime')">Acheter · 199 €</button>
+        <% } else { %>
+          <a href="/register?redirect=/premium" class="btn btn-outline btn-full">Créer un compte</a>
+        <% } %>
+      </div>
+
     </div>
   </div>
 
   <!-- Pro -->
   <div class="tier-block">
     <h2 class="tier-title">🩺 Pro — Professionnels de santé</h2>
-    <p class="tier-sub">Sages-femmes · Médecins · Kinésithérapeutes. Inclut tout le contenu grand public + modules pro, fiches cliniques et certificats.</p>
+    <p class="tier-sub">Sages-femmes · Médecins · Kinésithérapeutes. Inclut tout le contenu grand public + modules pro, fiches cliniques et certificats. <strong>Tuteur IA « Dr Neo » inclus</strong> (mensuel &amp; annuel).</p>
     <div class="pricing-grid">
 
       <div class="price-card">
@@ -93,6 +112,7 @@
           <li>✅ Tout le contenu grand public</li>
           <li>✅ Modules pro (anatomie, échographie, Doppler)</li>
           <li>✅ Fiches cliniques · protocoles</li>
+          <li>🎓 <strong>Tuteur IA « Dr Neo »</strong></li>
           <li>✅ Certificats de complétion</li>
         </ul>
         <% if (user) { %>
@@ -109,6 +129,7 @@
         <p class="price-sub">Soit 19,92 €/mois · <strong>-20 %</strong> vs mensuel</p>
         <ul>
           <li>✅ Tout le Pro mensuel</li>
+          <li>🎓 <strong>Tuteur IA « Dr Neo »</strong></li>
           <li>✅ 2 mois offerts sur l'année</li>
           <li>✅ Prix bloqué 12 mois</li>
         </ul>
@@ -119,6 +140,23 @@
         <% } %>
       </div>
 
+      <div class="price-card">
+        <div class="price-tag">À vie</div>
+        <h3>Pro à vie</h3>
+        <p class="price-amount">499 €<small>/unique</small></p>
+        <p class="price-sub">Un paiement, accès pro permanent</p>
+        <ul>
+          <li>✅ Tout le Pro, à vie</li>
+          <li>✅ Toutes les mises à jour futures</li>
+          <li>❌ <strong>Tuteur IA non inclus</strong> (réservé mensuel/annuel)</li>
+        </ul>
+        <% if (user) { %>
+          <button class="btn btn-outline btn-full" onclick="buyOffer('pro_lifetime')">Acheter · 499 €</button>
+        <% } else { %>
+          <a href="/register?redirect=/premium" class="btn btn-outline btn-full">Créer un compte pro</a>
+        <% } %>
+      </div>
+
     </div>
   </div>
 
@@ -126,19 +164,21 @@
     <h3>📊 Comparatif rapide</h3>
     <table class="compare-table">
       <thead>
-        <tr><th>Offre</th><th>Prix</th><th>€ / mois</th><th>Économie</th><th>Public</th></tr>
+        <tr><th>Offre</th><th>Prix</th><th>€ / mois</th><th>Tuteur IA</th><th>Public</th></tr>
       </thead>
       <tbody>
-        <tr><td>Gratuit</td><td>0 €</td><td>0 €</td><td>—</td><td>Grand public</td></tr>
-        <tr><td>Premium mensuel</td><td>9,90 €/mois</td><td>9,90 €</td><td>—</td><td>Grand public</td></tr>
-        <tr class="row-featured"><td>Premium annuel</td><td>95 €/an</td><td>7,92 €</td><td>-20 %</td><td>Grand public</td></tr>
-        <tr><td>Pro mensuel</td><td>24,90 €/mois</td><td>24,90 €</td><td>—</td><td>Pro santé</td></tr>
-        <tr class="row-featured"><td>Pro annuel</td><td>239 €/an</td><td>19,92 €</td><td>-20 %</td><td>Pro santé</td></tr>
+        <tr><td>Gratuit</td><td>0 €</td><td>0 €</td><td>❌</td><td>Grand public</td></tr>
+        <tr><td>Premium mensuel</td><td>9,90 €/mois</td><td>9,90 €</td><td>🎓 Oui</td><td>Grand public</td></tr>
+        <tr class="row-featured"><td>Premium annuel</td><td>95 €/an</td><td>7,92 €</td><td>🎓 Oui</td><td>Grand public</td></tr>
+        <tr><td>Premium à vie</td><td>199 € unique</td><td>—</td><td>❌ Non</td><td>Grand public</td></tr>
+        <tr><td>Pro mensuel</td><td>24,90 €/mois</td><td>24,90 €</td><td>🎓 Oui</td><td>Pro santé</td></tr>
+        <tr class="row-featured"><td>Pro annuel</td><td>239 €/an</td><td>19,92 €</td><td>🎓 Oui</td><td>Pro santé</td></tr>
+        <tr><td>Pro à vie</td><td>499 € unique</td><td>—</td><td>❌ Non</td><td>Pro santé</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p class="small-note">💡 <strong>Dev local</strong> : paiement simulé côté serveur pour tester les parcours. Stripe Checkout sera branché en Phase 2 (abonnements mensuel/annuel).</p>
+  <p class="small-note">💡 <strong>Dev local</strong> : paiement simulé côté serveur pour tester les parcours. Stripe Checkout sera branché en Phase 2 (abonnements mensuel/annuel + one-shot lifetime). Le Tuteur IA « Dr Neo » est réservé aux formules mensuel &amp; annuel.</p>
 
 </section>
 
@@ -151,7 +191,9 @@ async function buyOffer(offer) {
   });
   const data = await r.json();
   if (data.ok) {
-    const txt = '✅ Abonnement ' + data.tier + ' (' + data.interval + ') activé (démo). Prochain renouvellement le ' + new Date(data.until).toLocaleDateString();
+    const txt = data.interval === 'lifetime'
+      ? '✅ Accès ' + data.tier + ' à vie activé (démo). Tuteur IA non inclus.'
+      : '✅ Abonnement ' + data.tier + ' (' + data.interval + ') activé (démo). Prochain renouvellement le ' + new Date(data.until).toLocaleDateString();
     alert(txt);
     window.location = '<%= from %>';
   } else {
