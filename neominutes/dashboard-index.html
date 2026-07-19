@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NeoMinutes — Dashboard</title>
-<!-- nm-dashboard v5 (14 templates + PDF propre + WhatsApp + Copier) -->
+<!-- nm-dashboard v6 (14 templates + PDF CR/transcription/courrier + WhatsApp + contacts) -->
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{--bg:#0a0a0f;--surface:#13131a;--surface2:#1a1a26;--border:#22223a;--text:#e0e0f0;--muted:#8888aa;--accent:#5b8fff;--accent2:#9b6dff;--success:#4ade80;--error:#f87171;--warning:#fbbf24;--radius:10px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
@@ -63,9 +63,9 @@
   .b-pending{background:rgba(251,191,36,.15);color:var(--warning)}
   .b-transcribing,.b-summarizing{background:rgba(91,143,255,.15);color:var(--accent)}
   .b-transcribed{background:rgba(74,222,128,.15);color:var(--success)}
-  .b-done{background:rgba(155,109,255,.15);color:var(--accent2)}
+  .b-done,.b-completed{background:rgba(155,109,255,.15);color:var(--accent2)}
   .b-error{background:rgba(248,113,113,.15);color:var(--error)}
-  .b-uploaded{background:rgba(136,136,170,.15);color:var(--muted)}
+  .b-uploaded,.b-created{background:rgba(136,136,170,.15);color:var(--muted)}
   #detail{display:none;position:fixed;top:0;right:0;bottom:0;width:600px;max-width:100%;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;z-index:200}
   #detail.on{display:block}
   .d-head{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:18px 22px;display:flex;align-items:center;justify-content:space-between}
@@ -85,10 +85,12 @@
   .ov-card h3{margin-top:14px;font-size:15px}.ov-card p{margin-top:4px;font-size:12px;color:var(--muted)}
   #toast{position:fixed;bottom:22px;right:22px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 18px;font-size:13px;z-index:1000;display:none;max-width:340px}
   #toast.on{display:block}#toast.success{border-color:var(--success)}#toast.error{border-color:var(--error)}
-  #modal{position:fixed;inset:0;background:rgba(10,10,15,.8);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
-  #modal.on{display:flex}
-  .modal-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;width:100%;max-width:440px}
+  .modalbg{position:fixed;inset:0;background:rgba(10,10,15,.8);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
+  .modalbg.on{display:flex}
+  .modal-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto}
   .modal-card h3{font-size:17px;margin-bottom:16px}
+  .ct-item{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .ct-item .info{font-size:13px}.ct-item .info .r{color:var(--muted);font-size:11px}
 </style>
 </head>
 <body>
@@ -112,6 +114,7 @@
   <header>
     <div class="brand">🎙️ NeoMinutes</div>
     <div class="header-right">
+      <button class="btn btn-secondary btn-sm" onclick="openContacts()">👥 Contacts</button>
       <div class="status"><span class="dot"></span><span>Connecté</span></div>
       <button class="btn-logout" onclick="logout()">Déconnexion</button>
     </div>
@@ -148,7 +151,7 @@
 
 <div id="overlay"><div class="ov-card"><div class="spinner"></div><h3 id="ov-title">Chargement…</h3><p id="ov-sub"></p></div></div>
 
-<div id="modal"><div class="modal-card">
+<div id="modal" class="modalbg"><div class="modal-card">
   <h3 id="modal-title">Nouvel enregistrement</h3>
   <div class="form-group"><label class="form-label">Titre</label><input id="modal-input" class="form-input" placeholder="Ex. Staff obstétrique"></div>
   <div class="row" style="justify-content:flex-end;gap:10px">
@@ -157,12 +160,29 @@
   </div>
 </div></div>
 
+<div id="contacts-modal" class="modalbg"><div class="modal-card">
+  <h3>👥 Carnet de contacts</h3>
+  <div id="contacts-list"></div>
+  <div style="border-top:1px solid var(--border);margin:16px 0;padding-top:16px">
+    <div class="sec-title">Ajouter un contact</div>
+    <div class="form-group" style="margin-bottom:10px"><input id="ct-name" class="form-input" placeholder="Nom (ex. Dr Martin)"></div>
+    <div class="form-group" style="margin-bottom:10px"><input id="ct-role" class="form-input" placeholder="Rôle (ex. Médecin traitant, Cardiologue)"></div>
+    <div class="form-group" style="margin-bottom:10px"><input id="ct-email" class="form-input" placeholder="Email" type="email"></div>
+    <div class="form-group" style="margin-bottom:10px"><input id="ct-wa" class="form-input" placeholder="WhatsApp (ex. +33612345678)"></div>
+    <div class="form-group" style="margin-bottom:10px"><input id="ct-tg" class="form-input" placeholder="Telegram (chat ID)"></div>
+    <div class="row" style="justify-content:flex-end;gap:10px">
+      <button class="btn btn-secondary" onclick="closeContacts()">Fermer</button>
+      <button class="btn btn-primary" onclick="addContact()">➕ Ajouter</button>
+    </div>
+  </div>
+</div></div>
+
 <div id="toast"></div>
 
 <script>
   var API='';
   var apiKey = localStorage.getItem('nm_api_key') || '';
-  var recordings=[], templates=[], current=null;
+  var recordings=[], templates=[], contacts=[], current=null;
   var mr=null, chunks=[], stream=null, tSec=0, tInt=null, pendingTitle='';
 
   function $(id){ return document.getElementById(id); }
@@ -175,7 +195,7 @@
   function loading(t,s){ $('ov-title').textContent=t; $('ov-sub').textContent=s||''; $('overlay').classList.add('on'); }
   function done(){ $('overlay').classList.remove('on'); }
   function fdate(iso){ if(!iso) return '—'; var d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
-  function badge(s){ var map={pending:'En attente',created:'En attente',uploaded:'Audio prêt',transcribing:'Transcription…',transcribed:'Transcrit',summarizing:'Résumé…',done:'Terminé',error:'Erreur',importing:'Import…'}; return '<span class="badge b-'+(s||'pending')+'">'+(map[s]||s||'—')+'</span>'; }
+  function badge(s){ var map={pending:'En attente',created:'En attente',uploaded:'Audio prêt',transcribing:'Transcription…',transcribed:'Transcrit',summarizing:'Résumé…',completed:'Terminé',done:'Terminé',error:'Erreur',importing:'Import…'}; return '<span class="badge b-'+(s||'pending')+'">'+(map[s]||s||'—')+'</span>'; }
 
   async function api(path, opts){
     opts = opts || {};
@@ -195,11 +215,17 @@
       templates = (d && d.templates) || [];
       localStorage.setItem('nm_api_key', k);
       showApp();
+      await loadContacts();
       await loadRecordings();
     }catch(e){
       apiKey='';
       loginError(e && e.message==='auth' ? 'Clé refusée par le serveur (401/403).' : ('Erreur : '+(e && e.message ? e.message : e)));
     }
+  }
+
+  async function loadContacts(){
+    try{ var d = await api('/contacts'); contacts = (d && d.contacts) || []; }
+    catch(e){ contacts=[]; }
   }
 
   async function loadRecordings(){
@@ -304,13 +330,19 @@
     return (typeof r._summary==='string') ? r._summary : (r._summary.full_summary||r._summary.fullSummary||'');
   }
 
+  function contactOptions(){
+    if(!contacts.length) return '';
+    var o='<option value="">— Choisir un contact —</option>';
+    contacts.forEach(function(c){ o+='<option value="'+esc(c.id)+'">'+esc(c.name)+(c.role?(' ('+esc(c.role)+')'):'')+'</option>'; });
+    return o;
+  }
+
   function renderDetail(){
     var r=current; if(!r) return;
     $('d-title').textContent = r.title||'Sans titre';
     var hasT = !!r._transcript;
     var sTxt = summaryText();
     var hasS = !!(sTxt && String(sTxt).length>2);
-    // Le mode Auto est proposé en premier (choix par défaut)
     var tOpts=''; templates.filter(function(t){return !t.isCustom;}).forEach(function(t){ tOpts += '<option value="'+esc(t.id)+'"'+(t.id==='auto'?' selected':'')+'>'+esc(t.name||t.id)+'</option>'; });
     var dur = r.duration ? ('<span class="chip">⏱ '+(Math.round(r.duration/60)||1)+' min</span>') : '';
     var h='';
@@ -321,22 +353,41 @@
       h += '<div class="sec"><div class="sec-title">📋 Compte-rendu</div><div class="row" style="margin-bottom:10px"><select id="tpl" class="form-input" style="flex:1;min-width:160px">'+tOpts+'</select><button class="btn btn-primary btn-sm" onclick="doSummarize(\''+r.id+'\')">'+(hasS?'↻ Regénérer':'⚡ Générer')+'</button></div>';
       h += (hasS ? ('<div class="box" id="cr-box">'+esc(sTxt)+'</div>') : '<div class="box" style="color:var(--muted);text-align:center">Choisis un modèle (🪄 Automatique par défaut) puis « Générer ».</div>');
       h += '</div>';
-      // Transcription repliée en bas (le compte-rendu passe en premier)
       h += '<div class="sec"><div class="sec-title">📝 Transcription brute</div><div class="box" style="max-height:180px;opacity:.85">'+esc(r._transcript)+'</div></div>';
     }
     if(hasS){
-      h += '<div class="sec"><div class="sec-title">📄 Exporter (compte-rendu propre)</div><div class="row">'
-        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'pdf\')">📕 PDF</button>'
-        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'docx\')">📄 Word</button>'
-        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'markdown\')">📝 Markdown</button>'
+      h += '<div class="sec"><div class="sec-title">📄 Documents PDF</div><div class="row">'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'pdf\',\'summary\')">📕 Compte-rendu</button>'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'pdf\',\'transcript\')">📄 Transcription</button>'
+        + '<button class="btn btn-secondary btn-sm" onclick="doLetter(\''+r.id+'\')">✉️ Courrier médecin</button></div></div>';
+      h += '<div class="sec"><div class="sec-title">📎 Autres formats</div><div class="row">'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'docx\',\'summary\')">📄 Word</button>'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'markdown\',\'summary\')">📝 Markdown</button>'
         + '<button class="btn btn-secondary btn-sm" onclick="copyCR()">📋 Copier</button></div></div>';
-      h += '<div class="sec"><div class="sec-title">📤 Partager</div>'
-        + '<div class="row" style="margin-bottom:12px"><button class="btn btn-wa btn-sm" onclick="shareWhatsApp()">🟢 WhatsApp</button></div>'
+      // Partage
+      var cOpts = contactOptions();
+      h += '<div class="sec"><div class="sec-title">📤 Partager</div>';
+      if(cOpts){
+        h += '<div class="form-group"><label class="form-label">Contact du carnet</label><div class="row"><select id="sh-contact" class="form-input" style="flex:1" onchange="fillFromContact()">'+cOpts+'</select><button class="btn btn-secondary btn-sm" onclick="openContacts()">＋</button></div></div>';
+      } else {
+        h += '<div class="row" style="margin-bottom:10px"><button class="btn btn-secondary btn-sm" onclick="openContacts()">👥 Ajouter des contacts</button></div>';
+      }
+      h += '<div class="row" style="margin-bottom:12px"><button class="btn btn-wa btn-sm" onclick="shareWhatsApp()">🟢 Envoyer sur WhatsApp</button></div>'
         + '<div class="form-group"><label class="form-label">Email</label><div class="row"><input id="sh-email" class="form-input" style="flex:1" placeholder="destinataire@mail.com" type="email"><button class="btn btn-secondary btn-sm" onclick="sendEmail(\''+r.id+'\')">Envoyer</button></div></div>'
+        + '<div class="form-group"><label class="form-label">WhatsApp (numéro)</label><div class="row"><input id="sh-wa" class="form-input" style="flex:1" placeholder="+33612345678"><button class="btn btn-wa btn-sm" onclick="shareWhatsApp()">Ouvrir</button></div></div>'
         + '<div class="form-group" style="margin-bottom:0"><label class="form-label">Telegram (chat ID)</label><div class="row"><input id="sh-tg" class="form-input" style="flex:1" placeholder="ID de chat Telegram"><button class="btn btn-secondary btn-sm" onclick="sendTelegram(\''+r.id+'\')">Envoyer</button></div></div></div>';
     }
     h += '<div class="sec"><button class="btn btn-secondary btn-sm" onclick="delRec(\''+r.id+'\')" style="color:var(--error)">🗑 Supprimer</button></div>';
     $('d-body').innerHTML = h;
+  }
+
+  function fillFromContact(){
+    var sel=$('sh-contact'); if(!sel) return;
+    var c = contacts.find(function(x){ return x.id===sel.value; });
+    if(!c) return;
+    if($('sh-email')) $('sh-email').value = c.email||'';
+    if($('sh-wa')) $('sh-wa').value = c.whatsapp||'';
+    if($('sh-tg')) $('sh-tg').value = c.telegram||'';
   }
 
   async function reTranscribe(id){
@@ -350,24 +401,39 @@
     try{ await api('/recordings/'+id+'/summarize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template:tpl,language:'fr'})}); toast('Compte-rendu généré !'); await loadRecordings(); await openDetail(id); }
     catch(e){ toast('Erreur: '+(e.message||e),'error'); } finally{ done(); }
   }
-  async function doExport(id,format){
-    loading('Export…','Génération du '+format.toUpperCase());
+  async function downloadFile(d, fallbackName){
+    var url = d.fileUrl || d.filePath;
+    if(!url){ toast('Fichier généré.','success'); return; }
+    var full = (url.indexOf('http')===0)?url:(API+url);
+    var r = await fetch(full, { headers: H() });
+    if(!r.ok) throw new Error('téléchargement '+r.status);
+    var blob = await r.blob();
+    var obj = URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=obj; a.download=(d.filename||fallbackName);
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(obj); }, 5000);
+  }
+  async function doExport(id,format,content){
+    var labels={summary:'Compte-rendu',transcript:'Transcription'};
+    loading('Export…','Génération '+(labels[content]||format.toUpperCase()));
     try{
       var tpl = $('tpl') ? $('tpl').value : undefined;
-      // includeTranscript:false → le PDF/Word contient le COMPTE-RENDU propre, pas la transcription brute
-      var d = await api('/recordings/'+id+'/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:format,template:tpl,includeTranscript:false})});
-      var url = d.fileUrl || d.filePath;
-      if(!url){ toast('Export généré.','success'); return; }
-      var full = (url.indexOf('http')===0)?url:(API+url);
-      var r = await fetch(full, { headers: H() });   // télécharge AVEC la clé API
-      if(!r.ok) throw new Error('téléchargement '+r.status);
-      var blob = await r.blob();
-      var obj = URL.createObjectURL(blob);
-      var a=document.createElement('a'); a.href=obj; a.download=(d.filename || ('compte-rendu.'+(format==='markdown'?'md':format)));
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function(){ URL.revokeObjectURL(obj); }, 5000);
+      var d = await api('/recordings/'+id+'/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:format,template:tpl,content:content||'summary',includeTranscript:false})});
+      await downloadFile(d, 'neominutes.'+(format==='markdown'?'md':format));
       toast('Export téléchargé !');
     }catch(e){ toast('Erreur export: '+(e.message||e),'error'); } finally{ done(); }
+  }
+  async function doLetter(id){
+    var recipient=null;
+    var sel=$('sh-contact');
+    if(sel && sel.value){ var c=contacts.find(function(x){return x.id===sel.value;}); if(c) recipient={name:c.name,role:c.role}; }
+    loading('Rédaction du courrier…','L\u2019IA rédige la lettre au médecin');
+    try{
+      var tpl = $('tpl') ? $('tpl').value : undefined;
+      var d = await api('/recordings/'+id+'/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:'pdf',template:tpl,content:'letter',recipient:recipient})});
+      await downloadFile(d, 'courrier-medecin.pdf');
+      toast('Courrier généré !');
+    }catch(e){ toast('Erreur courrier: '+(e.message||e),'error'); } finally{ done(); }
   }
   function copyCR(){
     var txt = summaryText(); if(!txt) return toast('Rien à copier.','error');
@@ -383,9 +449,10 @@
     var r=current; var txt = summaryText(); if(!txt) return toast('Génère d\u2019abord un compte-rendu.','error');
     var header = (r && r.title ? ('*'+r.title+'*\n\n') : '');
     var msg = header + txt;
-    // WhatsApp limite l'URL : on tronque à ~1500 caractères pour rester fiable
     if(msg.length > 1500) msg = msg.slice(0,1500) + '\n\n[…] Compte-rendu complet en pièce jointe (PDF).';
-    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    var num = ($('sh-wa') && $('sh-wa').value ? $('sh-wa').value.replace(/[^0-9]/g,'') : '');
+    var base = num ? ('https://wa.me/'+num) : 'https://wa.me/';
+    window.open(base + '?text=' + encodeURIComponent(msg), '_blank');
   }
   async function sendEmail(id){
     var to = ($('sh-email').value||'').trim(); if(!to) return toast('Entrez un email.','error');
@@ -402,6 +469,36 @@
   async function delRec(id){
     if(!confirm('Supprimer cet enregistrement ?')) return;
     try{ await api('/recordings/'+id,{method:'DELETE'}); toast('Supprimé.'); closeDetail(); await loadRecordings(); }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); }
+  }
+
+  // ---- contacts ----
+  function openContacts(){ renderContacts(); $('contacts-modal').classList.add('on'); }
+  function closeContacts(){ $('contacts-modal').classList.remove('on'); }
+  function renderContacts(){
+    var el=$('contacts-list');
+    if(!contacts.length){ el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px 0">Aucun contact. Ajoute ton premier correspondant ci-dessous.</div>'; return; }
+    var h='';
+    contacts.forEach(function(c){
+      var chan=[]; if(c.email)chan.push('✉️'); if(c.whatsapp)chan.push('🟢'); if(c.telegram)chan.push('✈️');
+      h+='<div class="ct-item"><div class="info"><div>'+esc(c.name)+' '+chan.join(' ')+'</div><div class="r">'+esc(c.role||'')+(c.email?(' · '+esc(c.email)):'')+(c.whatsapp?(' · '+esc(c.whatsapp)):'')+'</div></div>'
+       +'<button class="btn btn-secondary btn-sm" style="color:var(--error)" onclick="delContact(\''+c.id+'\')">🗑</button></div>';
+    });
+    el.innerHTML=h;
+  }
+  async function addContact(){
+    var name=($('ct-name').value||'').trim(); if(!name) return toast('Nom requis.','error');
+    var body={ name:name, role:($('ct-role').value||'').trim(), email:($('ct-email').value||'').trim(), whatsapp:($('ct-wa').value||'').trim(), telegram:($('ct-tg').value||'').trim() };
+    try{
+      await api('/contacts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      $('ct-name').value='';$('ct-role').value='';$('ct-email').value='';$('ct-wa').value='';$('ct-tg').value='';
+      await loadContacts(); renderContacts(); if(current) renderDetail();
+      toast('Contact ajouté !');
+    }catch(e){ toast('Erreur: '+(e.message||e),'error'); }
+  }
+  async function delContact(id){
+    if(!confirm('Supprimer ce contact ?')) return;
+    try{ await api('/contacts/'+id,{method:'DELETE'}); await loadContacts(); renderContacts(); if(current) renderDetail(); toast('Contact supprimé.'); }
     catch(e){ toast('Erreur: '+(e.message||e),'error'); }
   }
 
