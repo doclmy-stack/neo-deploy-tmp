@@ -41,7 +41,17 @@ app.get('/', (req, res) => {
 
 // ===== ROUTES STATIQUES PUBLIQUES (AVANT AUTH) =====
 app.use('/landing', express.static(path.join(__dirname, '..', 'public', 'landing')));
-app.use('/dashboard', express.static(path.join(__dirname, '..', 'public', 'dashboard')));
+// Dashboard : NO-CACHE (évite que Cloudflare/navigateur servent une vieille version)
+app.use('/dashboard', express.static(path.join(__dirname, '..', 'public', 'dashboard'), {
+  etag: false,
+  lastModified: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+}));
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'terms.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'privacy.html')));
 
