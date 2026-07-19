@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeoMinutes — Dashboard</title>
+<!-- nm-dashboard v5 (14 templates + PDF propre + WhatsApp + Copier) -->
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0a0a0f;--surface:#13131a;--surface2:#1a1a26;--border:#22223a;--text:#e0e0f0;--muted:#8888aa;--accent:#5b8fff;--accent2:#9b6dff;--success:#4ade80;--error:#f87171;--warning:#fbbf24;--radius:10px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;line-height:1.6}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 22px;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:var(--font)}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+  .btn-primary:hover{opacity:.92}
+  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+  .btn-secondary:hover{background:var(--border)}
+  .btn-sm{padding:7px 14px;font-size:12px}
+  .btn-danger{background:linear-gradient(135deg,#f87171,#ef4444);color:#fff}
+  .btn-wa{background:#25D366;color:#052e16}
+  .form-input,select.form-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:14px;padding:12px 14px;outline:none;font-family:var(--font)}
+  .form-input:focus{border-color:var(--accent)}
+  .form-label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .form-group{margin-bottom:18px;text-align:left}
+  .error-msg{background:rgba(248,113,113,.12);border:1px solid var(--error);border-radius:var(--radius);color:var(--error);padding:12px 16px;font-size:13px;margin-bottom:16px;display:none}
+  .error-msg.visible{display:block}
+  #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:44px 38px;width:100%;max-width:420px;text-align:center}
+  .login-logo{font-size:30px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .login-subtitle{color:var(--muted);font-size:14px;margin-bottom:28px}
+  #app-shell{display:none}
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .brand{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .header-right{display:flex;align-items:center;gap:14px}
+  .status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--success)}
+  .btn-logout{background:transparent;color:var(--muted);font-size:12px;cursor:pointer;border:none;padding:6px 12px;border-radius:6px;font-family:var(--font)}
+  main{max-width:900px;margin:0 auto;padding:24px 18px 80px}
+  .page-title{font-size:22px;font-weight:700}
+  .page-sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+  .hero-actions{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:26px}
+  @media(max-width:560px){.hero-actions{grid-template-columns:1fr}}
+  .action-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:all .2s}
+  .action-card:hover{border-color:var(--accent)}
+  .action-card .ico{font-size:30px;margin-bottom:8px}
+  .action-card .t{font-weight:700;font-size:15px}
+  .action-card .s{color:var(--muted);font-size:12px;margin-top:3px}
+  #rec-bar{display:none;background:var(--surface);border:1px solid var(--error);border-radius:14px;padding:18px;margin-bottom:22px;text-align:center}
+  #rec-bar.on{display:block}
+  .rec-live{display:flex;align-items:center;justify-content:center;gap:10px;font-size:20px;font-weight:700;margin-bottom:12px}
+  .rec-pulse{width:14px;height:14px;border-radius:50%;background:var(--error);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .search-box{position:relative;flex:1;min-width:180px}
+  .search-box input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;padding:10px 14px 10px 36px;outline:none;font-family:var(--font)}
+  .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+  .grid{display:grid;gap:14px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:all .2s}
+  .card:hover{border-color:var(--accent)}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+  .card-title{font-size:15px;font-weight:600}
+  .card-date{font-size:12px;color:var(--muted)}
+  .badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+  .b-pending{background:rgba(251,191,36,.15);color:var(--warning)}
+  .b-transcribing,.b-summarizing{background:rgba(91,143,255,.15);color:var(--accent)}
+  .b-transcribed{background:rgba(74,222,128,.15);color:var(--success)}
+  .b-done{background:rgba(155,109,255,.15);color:var(--accent2)}
+  .b-error{background:rgba(248,113,113,.15);color:var(--error)}
+  .b-uploaded{background:rgba(136,136,170,.15);color:var(--muted)}
+  #detail{display:none;position:fixed;top:0;right:0;bottom:0;width:600px;max-width:100%;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;z-index:200}
+  #detail.on{display:block}
+  .d-head{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:18px 22px;display:flex;align-items:center;justify-content:space-between}
+  .d-title{font-size:17px;font-weight:700;flex:1;padding-right:10px}
+  .d-close{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer}
+  .d-body{padding:22px}
+  .sec{margin-bottom:24px}
+  .sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px}
+  .box{background:var(--surface2);border-radius:var(--radius);padding:14px;font-size:13px;line-height:1.7;max-height:320px;overflow-y:auto;white-space:pre-wrap}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .chip{padding:4px 10px;border-radius:20px;font-size:11px;background:var(--surface2);color:var(--muted)}
+  #overlay{position:fixed;inset:0;background:rgba(10,10,15,.72);display:none;align-items:center;justify-content:center;z-index:999}
+  #overlay.on{display:flex}
+  .ov-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:30px;text-align:center;min-width:260px}
+  .spinner{display:inline-block;width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ov-card h3{margin-top:14px;font-size:15px}.ov-card p{margin-top:4px;font-size:12px;color:var(--muted)}
+  #toast{position:fixed;bottom:22px;right:22px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 18px;font-size:13px;z-index:1000;display:none;max-width:340px}
+  #toast.on{display:block}#toast.success{border-color:var(--success)}#toast.error{border-color:var(--error)}
+  #modal{position:fixed;inset:0;background:rgba(10,10,15,.8);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
+  #modal.on{display:flex}
+  .modal-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;width:100%;max-width:440px}
+  .modal-card h3{font-size:17px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🎙️ NeoMinutes</div>
+    <p class="login-subtitle">Comptes-rendus intelligents de tout type</p>
+    <div id="login-error" class="error-msg"></div>
+    <form id="login-form" onsubmit="event.preventDefault();doLogin();return false;">
+      <div class="form-group">
+        <label class="form-label" for="api-key">Clé d'accès</label>
+        <input type="password" id="api-key" class="form-input" placeholder="Votre clé API" autocomplete="current-password">
+      </div>
+      <button type="button" class="btn btn-primary" style="width:100%" onclick="doLogin()">🔐 Se connecter</button>
+    </form>
+  </div>
+</div>
+
+<div id="app-shell">
+  <header>
+    <div class="brand">🎙️ NeoMinutes</div>
+    <div class="header-right">
+      <div class="status"><span class="dot"></span><span>Connecté</span></div>
+      <button class="btn-logout" onclick="logout()">Déconnexion</button>
+    </div>
+  </header>
+  <main>
+    <h1 class="page-title">Mes enregistrements</h1>
+    <p class="page-sub">Enregistrez ou importez un audio → transcription → compte-rendu IA → export &amp; partage.</p>
+    <div id="rec-bar">
+      <div class="rec-live"><span class="rec-pulse"></span><span id="rec-timer">00:00</span></div>
+      <button class="btn btn-danger" onclick="stopRecording()">⏹ Arrêter l'enregistrement</button>
+    </div>
+    <div class="hero-actions">
+      <div class="action-card" onclick="askRecord()"><div class="ico">🎙️</div><div class="t">Enregistrer</div><div class="s">Micro · direct</div></div>
+      <div class="action-card" onclick="document.getElementById('file-input').click()"><div class="ico">📤</div><div class="t">Importer un audio</div><div class="s">MP3, WAV, M4A, WEBM…</div></div>
+    </div>
+    <input type="file" id="file-input" accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.webm" style="display:none">
+    <div class="toolbar">
+      <div class="search-box"><span class="search-icon">🔍</span><input id="search" placeholder="Rechercher…" oninput="renderList()"></div>
+      <button class="btn btn-secondary btn-sm" onclick="loadRecordings()">↻ Rafraîchir</button>
+    </div>
+    <div id="empty" style="text-align:center;padding:50px 20px;color:var(--muted)">
+      <div style="font-size:44px;opacity:.4">🎙️</div>
+      <h3 style="color:var(--text);margin-top:12px">Aucun enregistrement</h3>
+      <p style="font-size:13px">Enregistrez ou importez un audio pour commencer.</p>
+    </div>
+    <div id="list" class="grid"></div>
+  </main>
+</div>
+
+<div id="detail">
+  <div class="d-head"><div class="d-title" id="d-title">—</div><button class="d-close" onclick="closeDetail()">✕</button></div>
+  <div class="d-body" id="d-body"></div>
+</div>
+
+<div id="overlay"><div class="ov-card"><div class="spinner"></div><h3 id="ov-title">Chargement…</h3><p id="ov-sub"></p></div></div>
+
+<div id="modal"><div class="modal-card">
+  <h3 id="modal-title">Nouvel enregistrement</h3>
+  <div class="form-group"><label class="form-label">Titre</label><input id="modal-input" class="form-input" placeholder="Ex. Staff obstétrique"></div>
+  <div class="row" style="justify-content:flex-end;gap:10px">
+    <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" id="modal-ok">Démarrer 🎙️</button>
+  </div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+  var API='';
+  var apiKey = localStorage.getItem('nm_api_key') || '';
+  var recordings=[], templates=[], current=null;
+  var mr=null, chunks=[], stream=null, tSec=0, tInt=null, pendingTitle='';
+
+  function $(id){ return document.getElementById(id); }
+  function H(){ return { 'X-API-Key': apiKey }; }
+  function loginError(m){ var e=$('login-error'); e.textContent=m||''; if(m) e.classList.add('visible'); else e.classList.remove('visible'); }
+  function showApp(){ $('login-screen').style.display='none'; $('app-shell').style.display='block'; }
+  function logout(){ apiKey=''; localStorage.removeItem('nm_api_key'); location.href='/dashboard/'; }
+  function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML; }
+  function toast(m,t){ var el=$('toast'); el.textContent=m; el.className='on '+(t||'success'); setTimeout(function(){ el.className=''; },3800); }
+  function loading(t,s){ $('ov-title').textContent=t; $('ov-sub').textContent=s||''; $('overlay').classList.add('on'); }
+  function done(){ $('overlay').classList.remove('on'); }
+  function fdate(iso){ if(!iso) return '—'; var d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  function badge(s){ var map={pending:'En attente',created:'En attente',uploaded:'Audio prêt',transcribing:'Transcription…',transcribed:'Transcrit',summarizing:'Résumé…',done:'Terminé',error:'Erreur',importing:'Import…'}; return '<span class="badge b-'+(s||'pending')+'">'+(map[s]||s||'—')+'</span>'; }
+
+  async function api(path, opts){
+    opts = opts || {};
+    var res = await fetch(API+path, { method: opts.method||'GET', headers: Object.assign({}, H(), opts.headers||{}), body: opts.body });
+    if (res.status===401 || res.status===403) throw new Error('auth');
+    var data={}; try{ data = await res.json(); }catch(e){}
+    if (!res.ok) throw new Error((data && (data.message||data.error)) || ('HTTP '+res.status));
+    return data;
+  }
+
+  async function doLogin(){
+    var k = (($('api-key').value)||'').trim();
+    if(!k){ loginError('Entrez la clé.'); return; }
+    apiKey = k; loginError('');
+    try{
+      var d = await api('/templates');
+      templates = (d && d.templates) || [];
+      localStorage.setItem('nm_api_key', k);
+      showApp();
+      await loadRecordings();
+    }catch(e){
+      apiKey='';
+      loginError(e && e.message==='auth' ? 'Clé refusée par le serveur (401/403).' : ('Erreur : '+(e && e.message ? e.message : e)));
+    }
+  }
+
+  async function loadRecordings(){
+    try{ var d = await api('/recordings?limit=50'); recordings = (d && (d.recordings||d.items)) || []; }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); recordings=[]; }
+    renderList();
+  }
+
+  function renderList(){
+    var q = (($('search').value)||'').toLowerCase();
+    var items = recordings.filter(function(r){ return !q || ((r.title||'').toLowerCase().indexOf(q)>=0); });
+    var list=$('list'), empty=$('empty');
+    if(!items.length){ list.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    var html='';
+    items.forEach(function(r){
+      var dur = r.duration ? ('<span class="chip">⏱ '+(Math.round(r.duration/60)||1)+' min</span>') : '';
+      html += '<div class="card" onclick="openDetail(\''+r.id+'\')">'
+        + '<div class="card-top"><div><div class="card-title">'+esc(r.title||'Sans titre')+'</div>'
+        + '<div class="card-date">'+fdate(r.createdAt||r.created_at)+'</div></div>'+badge(r.status)+'</div>'
+        + '<div class="row"><span class="chip">'+((r.language||'fr').toUpperCase())+'</span>'+dur+'</div></div>';
+    });
+    list.innerHTML = html;
+  }
+
+  // ---- import + enregistrement ----
+  async function importFile(file){
+    var title = (file.name||'audio').replace(/\.[^/.]+$/,'').replace(/[-_]/g,' ') || 'Import audio';
+    await createUploadTranscribe(title, file, file.name);
+  }
+  function askRecord(){ $('modal-input').value = 'Enregistrement ' + new Date().toLocaleDateString('fr-FR'); $('modal').classList.add('on'); }
+  function closeModal(){ $('modal').classList.remove('on'); }
+
+  async function startRecording(){
+    if(!navigator.mediaDevices || !window.MediaRecorder){ toast('Navigateur incompatible (essayez Chrome).','error'); return; }
+    try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ toast('Micro refusé — autorisez le micro.','error'); return; }
+    chunks=[];
+    var mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+    mr = new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
+    mr.ondataavailable = function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop = onRecStop;
+    mr.start();
+    tSec=0; $('rec-timer').textContent='00:00'; $('rec-bar').classList.add('on');
+    tInt=setInterval(function(){ tSec++; var m=String(Math.floor(tSec/60)); if(m.length<2)m='0'+m; var s=String(tSec%60); if(s.length<2)s='0'+s; $('rec-timer').textContent=m+':'+s; },1000);
+  }
+  function stopRecording(){ if(mr && mr.state!=='inactive') mr.stop(); }
+  async function onRecStop(){
+    clearInterval(tInt); $('rec-bar').classList.remove('on');
+    try{ stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+    var type = (mr && mr.mimeType) || 'audio/webm';
+    var ext = type.indexOf('mp4')>=0 ? 'mp4' : 'webm';
+    var blob = new Blob(chunks, {type:type});
+    if(blob.size < 1200){ toast('Enregistrement trop court.','error'); return; }
+    await createUploadTranscribe(pendingTitle, blob, 'audio.'+ext);
+  }
+
+  async function createUploadTranscribe(title, fileOrBlob, filename){
+    loading('Création…','Enregistrement');
+    try{
+      var c = await api('/recordings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title:title, language:'fr' }) });
+      var id = c.recording.id;
+      loading('Envoi de l\u2019audio…','Upload en cours');
+      var fd = new FormData(); fd.append('audio', fileOrBlob, filename);
+      await uploadXHR('/recordings/'+id+'/upload', fd);
+      loading('Transcription…','L\u2019IA écoute l\u2019audio (1-2 min)');
+      await api('/recordings/'+id+'/transcribe', { method:'POST' });
+      done(); toast('Transcription terminée !');
+      await loadRecordings(); openDetail(id);
+    }catch(e){ done(); toast('Erreur: '+(e.message||e),'error'); await loadRecordings(); }
+  }
+  function uploadXHR(path, fd){
+    return new Promise(function(resolve,reject){
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', API+path);
+      xhr.setRequestHeader('X-API-Key', apiKey);
+      xhr.onload = function(){ xhr.status<400 ? resolve() : reject(new Error(xhr.responseText||'Upload échoué')); };
+      xhr.onerror = function(){ reject(new Error('Erreur réseau')); };
+      xhr.send(fd);
+    });
+  }
+
+  // ---- détail ----
+  async function openDetail(id){
+    loading('Ouverture…','');
+    try{
+      var d = await api('/recordings/'+id);
+      current = d.recording || d;
+      var transcript=null, summary=null;
+      try{ var t = await api('/recordings/'+id+'/transcript'); transcript = t.transcript && (t.transcript.content||t.transcript); }catch(e){}
+      try{ var s = await api('/recordings/'+id+'/summary'); summary = s.summary && (s.summary.full_summary||s.summary.fullSummary||s.summary); }catch(e){}
+      current._transcript = transcript; current._summary = summary;
+      renderDetail();
+      $('detail').classList.add('on');
+    }catch(e){ toast('Erreur: '+(e.message||e),'error'); }
+    finally{ done(); }
+  }
+  function closeDetail(){ $('detail').classList.remove('on'); current=null; }
+
+  function summaryText(){
+    var r=current; if(!r||!r._summary) return '';
+    return (typeof r._summary==='string') ? r._summary : (r._summary.full_summary||r._summary.fullSummary||'');
+  }
+
+  function renderDetail(){
+    var r=current; if(!r) return;
+    $('d-title').textContent = r.title||'Sans titre';
+    var hasT = !!r._transcript;
+    var sTxt = summaryText();
+    var hasS = !!(sTxt && String(sTxt).length>2);
+    // Le mode Auto est proposé en premier (choix par défaut)
+    var tOpts=''; templates.filter(function(t){return !t.isCustom;}).forEach(function(t){ tOpts += '<option value="'+esc(t.id)+'"'+(t.id==='auto'?' selected':'')+'>'+esc(t.name||t.id)+'</option>'; });
+    var dur = r.duration ? ('<span class="chip">⏱ '+(Math.round(r.duration/60)||1)+' min</span>') : '';
+    var h='';
+    h += '<div class="sec"><div class="row"><span class="chip">'+badge(r.status)+'</span><span class="chip">'+fdate(r.createdAt||r.created_at)+'</span>'+dur+'</div></div>';
+    if(!hasT){
+      h += '<div class="sec"><div class="sec-title">Transcription</div><div class="box" style="text-align:center;color:var(--muted)">Pas encore de transcription.<div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="reTranscribe(\''+r.id+'\')">✏️ Lancer la transcription</button></div></div></div>';
+    } else {
+      h += '<div class="sec"><div class="sec-title">📋 Compte-rendu</div><div class="row" style="margin-bottom:10px"><select id="tpl" class="form-input" style="flex:1;min-width:160px">'+tOpts+'</select><button class="btn btn-primary btn-sm" onclick="doSummarize(\''+r.id+'\')">'+(hasS?'↻ Regénérer':'⚡ Générer')+'</button></div>';
+      h += (hasS ? ('<div class="box" id="cr-box">'+esc(sTxt)+'</div>') : '<div class="box" style="color:var(--muted);text-align:center">Choisis un modèle (🪄 Automatique par défaut) puis « Générer ».</div>');
+      h += '</div>';
+      // Transcription repliée en bas (le compte-rendu passe en premier)
+      h += '<div class="sec"><div class="sec-title">📝 Transcription brute</div><div class="box" style="max-height:180px;opacity:.85">'+esc(r._transcript)+'</div></div>';
+    }
+    if(hasS){
+      h += '<div class="sec"><div class="sec-title">📄 Exporter (compte-rendu propre)</div><div class="row">'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'pdf\')">📕 PDF</button>'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'docx\')">📄 Word</button>'
+        + '<button class="btn btn-secondary btn-sm" onclick="doExport(\''+r.id+'\',\'markdown\')">📝 Markdown</button>'
+        + '<button class="btn btn-secondary btn-sm" onclick="copyCR()">📋 Copier</button></div></div>';
+      h += '<div class="sec"><div class="sec-title">📤 Partager</div>'
+        + '<div class="row" style="margin-bottom:12px"><button class="btn btn-wa btn-sm" onclick="shareWhatsApp()">🟢 WhatsApp</button></div>'
+        + '<div class="form-group"><label class="form-label">Email</label><div class="row"><input id="sh-email" class="form-input" style="flex:1" placeholder="destinataire@mail.com" type="email"><button class="btn btn-secondary btn-sm" onclick="sendEmail(\''+r.id+'\')">Envoyer</button></div></div>'
+        + '<div class="form-group" style="margin-bottom:0"><label class="form-label">Telegram (chat ID)</label><div class="row"><input id="sh-tg" class="form-input" style="flex:1" placeholder="ID de chat Telegram"><button class="btn btn-secondary btn-sm" onclick="sendTelegram(\''+r.id+'\')">Envoyer</button></div></div></div>';
+    }
+    h += '<div class="sec"><button class="btn btn-secondary btn-sm" onclick="delRec(\''+r.id+'\')" style="color:var(--error)">🗑 Supprimer</button></div>';
+    $('d-body').innerHTML = h;
+  }
+
+  async function reTranscribe(id){
+    loading('Transcription…','L\u2019IA écoute l\u2019audio');
+    try{ await api('/recordings/'+id+'/transcribe',{method:'POST'}); toast('Transcription terminée !'); await loadRecordings(); await openDetail(id); }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); } finally{ done(); }
+  }
+  async function doSummarize(id){
+    var tpl = $('tpl') ? $('tpl').value : 'auto';
+    loading('Génération du compte-rendu…','Modèle « '+tpl+' »');
+    try{ await api('/recordings/'+id+'/summarize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template:tpl,language:'fr'})}); toast('Compte-rendu généré !'); await loadRecordings(); await openDetail(id); }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); } finally{ done(); }
+  }
+  async function doExport(id,format){
+    loading('Export…','Génération du '+format.toUpperCase());
+    try{
+      var tpl = $('tpl') ? $('tpl').value : undefined;
+      // includeTranscript:false → le PDF/Word contient le COMPTE-RENDU propre, pas la transcription brute
+      var d = await api('/recordings/'+id+'/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({format:format,template:tpl,includeTranscript:false})});
+      var url = d.fileUrl || d.filePath;
+      if(!url){ toast('Export généré.','success'); return; }
+      var full = (url.indexOf('http')===0)?url:(API+url);
+      var r = await fetch(full, { headers: H() });   // télécharge AVEC la clé API
+      if(!r.ok) throw new Error('téléchargement '+r.status);
+      var blob = await r.blob();
+      var obj = URL.createObjectURL(blob);
+      var a=document.createElement('a'); a.href=obj; a.download=(d.filename || ('compte-rendu.'+(format==='markdown'?'md':format)));
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(obj); }, 5000);
+      toast('Export téléchargé !');
+    }catch(e){ toast('Erreur export: '+(e.message||e),'error'); } finally{ done(); }
+  }
+  function copyCR(){
+    var txt = summaryText(); if(!txt) return toast('Rien à copier.','error');
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){ toast('Compte-rendu copié !'); }, function(){ toast('Copie impossible.','error'); });
+    } else {
+      var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); toast('Compte-rendu copié !'); }catch(e){ toast('Copie impossible.','error'); }
+      ta.remove();
+    }
+  }
+  function shareWhatsApp(){
+    var r=current; var txt = summaryText(); if(!txt) return toast('Génère d\u2019abord un compte-rendu.','error');
+    var header = (r && r.title ? ('*'+r.title+'*\n\n') : '');
+    var msg = header + txt;
+    // WhatsApp limite l'URL : on tronque à ~1500 caractères pour rester fiable
+    if(msg.length > 1500) msg = msg.slice(0,1500) + '\n\n[…] Compte-rendu complet en pièce jointe (PDF).';
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  }
+  async function sendEmail(id){
+    var to = ($('sh-email').value||'').trim(); if(!to) return toast('Entrez un email.','error');
+    loading('Envoi email…','');
+    try{ await api('/recordings/'+id+'/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channels:[{type:'email',to:to,format:'pdf'}]})}); toast('Email envoyé !'); }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); } finally{ done(); }
+  }
+  async function sendTelegram(id){
+    var chatId = ($('sh-tg').value||'').trim(); if(!chatId) return toast('Entrez un chat ID Telegram.','error');
+    loading('Envoi Telegram…','');
+    try{ await api('/recordings/'+id+'/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channels:[{type:'telegram',chatId:chatId,format:'pdf'}]})}); toast('Envoyé sur Telegram !'); }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); } finally{ done(); }
+  }
+  async function delRec(id){
+    if(!confirm('Supprimer cet enregistrement ?')) return;
+    try{ await api('/recordings/'+id,{method:'DELETE'}); toast('Supprimé.'); closeDetail(); await loadRecordings(); }
+    catch(e){ toast('Erreur: '+(e.message||e),'error'); }
+  }
+
+  // ---- init (robuste + lien magique ?k=) ----
+  function init(){
+    try{
+      var params = new URLSearchParams(location.search);
+      var urlKey = params.get('k');
+      if(urlKey){ $('api-key').value = urlKey; apiKey = urlKey; }
+      var mo = $('modal-ok'); if(mo) mo.addEventListener('click', function(){ pendingTitle=($('modal-input').value||'').trim()||'Enregistrement'; closeModal(); startRecording(); });
+      var fi = $('file-input'); if(fi) fi.addEventListener('change', function(e){ var f=e.target.files[0]; if(f) importFile(f); e.target.value=''; });
+      if(apiKey){ doLogin(); }
+    }catch(e){ loginError('Erreur init: '+(e && e.message||e)); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+</script>
+</body>
+</html>
