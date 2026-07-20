@@ -2,12 +2,27 @@
  * NeoMinutes - Template: Compte-rendu médical (consultation)
  * Version renforcée : définitions STRICTES des rubriques + exemple, pour éviter
  * la confusion motif / antécédents / examen (fréquente avec les petits modèles).
+ * asLines() normalise les listes en vraies puces "• " (même si l'IA renvoie
+ * une seule chaîne "- A, - B" ou un tableau).
  */
 
 const asLines = (val) => {
   if (val == null) return '';
-  if (Array.isArray(val)) return val.filter(Boolean).map(v => `- ${String(v).trim()}`).join('\n');
-  return String(val).trim();
+  let items = [];
+  if (Array.isArray(val)) {
+    items = val.map(v => String(v));
+  } else {
+    // Chaîne : on découpe sur " - ", "; ", " • " ou retours à la ligne
+    const s = String(val).trim();
+    if (/(^|\s)[-•]\s|;\s|\n/.test(s)) {
+      items = s.split(/\s*[-•]\s+|\s*;\s+|\n+/);
+    } else {
+      items = [s];
+    }
+  }
+  items = items.map(x => x.replace(/^[-•\s]+/, '').trim()).filter(Boolean);
+  if (items.length <= 1) return items.join('');           // texte simple : pas de puce
+  return items.map(x => `•  ${x}`).join('\n');            // liste : une puce par élément
 };
 
 module.exports = {
@@ -30,7 +45,7 @@ DÉFINITION STRICTE DE CHAQUE RUBRIQUE (ne JAMAIS les confondre) :
 RÈGLES :
 - Sois FIDÈLE : n'invente RIEN qui ne soit dans la transcription.
 - CORRIGE les termes médicaux et noms de médicaments mal transcrits (ex : "mi-cause"→"mycose", "Omexin"→"Lomexin", "Pévisonne"→"Pévisone", "Eurofluco/Oroflucos"→"Fluconazole").
-- Utilise des puces pour EXAMEN et PRESCRIPTIONS (plusieurs éléments).
+- Pour EXAMEN et PRESCRIPTIONS : renvoie un TABLEAU JSON, un élément par item (ex : ["item1","item2"]). Ne mets pas plusieurs items dans une même chaîne.
 
 EXEMPLE de bon classement (patiente qui consulte pour démangeaisons, G3P2 sous pilule) :
 - motif : "Démangeaisons vulvaires depuis 2 semaines ; suivi annuel."
@@ -42,10 +57,10 @@ Note bien : la contraception et G3P2 vont dans ANTÉCÉDENTS, pas dans le motif.
   userPromptInstructions: `Rédige le compte-rendu en classant CHAQUE information dans la bonne rubrique selon les définitions strictes ci-dessus :
 - MOTIF : seulement la raison de la consultation du jour.
 - ANTÉCÉDENTS : G/P, âge, contraception, tabac/alcool, DDR, bilans/poids, histoire médicale.
-- EXAMEN : symptômes + observations cliniques (puces).
+- EXAMEN : symptômes + observations cliniques (TABLEAU, un élément par observation).
 - CONCLUSION : diagnostic ou hypothèses.
 - CONDUITE À TENIR : examens complémentaires, suivi, renouvellements.
-- PRESCRIPTIONS : médicaments + posologie (puces, noms corrigés).
+- PRESCRIPTIONS : médicaments + posologie (TABLEAU, un élément par médicament, noms corrigés).
 
 Vérifie AVANT de répondre que rien du "motif" ne se retrouve dans "antécédents" et inversement. N'invente rien.`,
 
