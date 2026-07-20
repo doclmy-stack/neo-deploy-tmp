@@ -1,14 +1,16 @@
 /**
- * NeoMinutes - Template: Automatique / Universel
- * L'IA détecte elle-même la nature de l'enregistrement (médical, réunion,
- * congrès, appel, cours, culture, perso...) et produit le compte-rendu le
- * plus adapté. Modèle "passe-partout" par défaut.
+ * NeoMinutes - Template: Automatique / Universel — STYLE RÉDIGÉ
+ * L'IA détecte la nature de l'enregistrement et produit un compte-rendu
+ * en phrases complètes, une idée par ligne.
  */
 
-const asLines = (val) => {
+// Découpe en phrases → une par ligne (chaque phrase terminée par un point).
+const asSentences = (val) => {
   if (val == null) return '';
-  if (Array.isArray(val)) return val.filter(Boolean).map(v => `- ${String(v).trim()}`).join('\n');
-  return String(val).trim();
+  let raw = Array.isArray(val) ? val.join('. ') : String(val);
+  raw = raw.replace(/\s*[-•]\s*/g, '. ').replace(/\s*;\s*/g, '. ');
+  const parts = raw.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(Boolean);
+  return parts.map(s => (/[.!?]$/.test(s) ? s : s + '.')).join('\n');
 };
 
 module.exports = {
@@ -16,27 +18,28 @@ module.exports = {
   name: '🪄 Automatique (universel)',
   description: "Détecte tout seul le type d'enregistrement et produit le meilleur compte-rendu",
   fields: ['type_detecte', 'titre', 'resume', 'points_cles', 'decisions', 'actions', 'details'],
-  arrayFields: ['points_cles', 'decisions', 'actions'],
 
   systemPrompt: `Tu es un assistant expert capable de rédiger un compte-rendu clair de N'IMPORTE QUEL enregistrement audio, quel que soit le domaine : médical, réunion professionnelle, conférence/congrès, appel téléphonique ou WhatsApp, consultation, cours, entretien, événement culturel (spectacle, expo, film, lecture), note personnelle, etc.
 
+STYLE OBLIGATOIRE : des PHRASES COMPLÈTES et fluides, UNE seule idée par phrase (pas de style télégraphique, pas de puces).
+
 DÉMARCHE :
-1. Détermine d'abord la NATURE de l'enregistrement (le "type_detecte", en 2-4 mots, ex : "Consultation médicale", "Réunion d'équipe", "Conférence de congrès", "Appel commercial", "Note personnelle", "Visite d'exposition").
-2. Adapte le style et le vocabulaire à ce contexte (professionnel et précis en médical/business ; plus libre en culture/perso).
-3. Produis un compte-rendu fidèle, structuré et utile.
+1. Détermine d'abord la NATURE de l'enregistrement (le "type_detecte", en 2-4 mots, ex : "Consultation médicale", "Réunion d'équipe", "Conférence de congrès", "Appel commercial", "Note personnelle").
+2. Adapte le style et le vocabulaire à ce contexte.
+3. Produis un compte-rendu fidèle et utile.
 
-RÈGLES : n'invente RIEN qui ne soit dans la transcription. Corrige les erreurs manifestes de transcription automatique (mots/noms propres/termes techniques phonétiquement déformés). Reste synthétique mais complet.`,
+RÈGLES : n'invente RIEN qui ne soit dans la transcription. Corrige les erreurs manifestes de transcription (mots/noms propres/termes techniques déformés).`,
 
-  userPromptInstructions: `Analyse la transcription et rédige un compte-rendu universel :
+  userPromptInstructions: `Analyse la transcription et rédige un compte-rendu universel EN PHRASES (une idée par phrase) :
 - TYPE_DETECTE : la nature de l'enregistrement (courte étiquette).
 - TITRE : un titre court et parlant.
 - RESUME : 3 à 6 phrases qui capturent l'essentiel.
-- POINTS_CLES : les idées / informations importantes (liste).
-- DECISIONS : décisions ou conclusions prises (liste ; vide si aucune).
-- ACTIONS : tâches / suites à donner, avec qui/quand si mentionné (liste ; vide si aucune).
-- DETAILS : développement complémentaire utile selon le contexte (paragraphe(s)).
+- POINTS_CLES : les idées importantes, une phrase complète par idée.
+- DECISIONS : décisions/conclusions, une phrase chacune (ou "" si aucune).
+- ACTIONS : tâches/suites à donner, une phrase chacune (qui/quand si mentionné ; "" si aucune).
+- DETAILS : développement complémentaire en phrases.
 
-Adapte la profondeur au contenu. Ne mets pas d'information inventée.`,
+Ne mets pas d'information inventée.`,
 
   formatOutput: (summary) => {
     const line = '─────────────────────────────────────────────────────────\n';
@@ -53,7 +56,7 @@ Adapte la profondeur au contenu. Ne mets pas d'information inventée.`,
     }
 
     const sec = (title, val) => {
-      const t = asLines(val);
+      const t = asSentences(val);
       if (!t) return;
       output += title + '\n' + line + t + '\n\n';
     };
