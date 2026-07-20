@@ -4,6 +4,10 @@
  * ⚠️ Pour le PDF/Word en mode summary, on réutilise le full_summary DÉJÀ FORMATÉ
  * (généré avec le bon template) au lieu de le refabriquer avec un template éventuellement
  * différent (sinon le doc ne contient que les mots-clés = bug PDF vide).
+ *
+ * SIGNATURE praticien : configurable via .env
+ *   SIGN_NAME, SIGN_SPECIALTY, SIGN_EMAIL, SIGN_PHONE
+ * (valeurs par défaut = Dr Laurent MAMY).
  */
 
 const express = require('express');
@@ -17,8 +21,22 @@ const storage = require('../services/storage');
 const aiText = require('../services/aiText');
 const { fireWebhookEvent } = require('../services/webhook');
 
+// Bloc signature (depuis .env, sinon défauts Dr Laurent MAMY)
+function signatureBlock() {
+  const name = process.env.SIGN_NAME || 'Dr Laurent MAMY';
+  const spec = process.env.SIGN_SPECIALTY || 'Gynécologue-obstétricien';
+  const email = process.env.SIGN_EMAIL || 'secretaire.drmamy@gmail.com';
+  const phone = process.env.SIGN_PHONE || '01.83.75.02.50';
+  let s = 'Bien confraternellement,\n' + name;
+  if (spec) s += '\n' + spec;
+  const contact = [email, phone ? ('Tél : ' + phone) : ''].filter(Boolean).join(' · ');
+  if (contact) s += '\n' + contact;
+  return s;
+}
+
 /**
  * Courrier médical STRUCTURÉ et concis, rédigé par l'IA à partir du compte-rendu.
+ * La signature est AJOUTÉE par le code (pas par l'IA) pour être exacte.
  */
 async function buildLetterText(recording, summaryData, fullSummary, templateId, recipient) {
   const crText = fullSummary || templates.formatSummary(templateId, summaryData || {});
@@ -26,7 +44,7 @@ async function buildLetterText(recording, summaryData, fullSummary, templateId, 
   const dateStr = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
   const system = `Tu es médecin. Tu rédiges une COURTE lettre confraternelle de SUIVI (compte-rendu adressé au médecin traitant / correspondant), à partir d'un compte-rendu de consultation. Ce n'est PAS une lettre d'orientation : la patiente n'est pas "adressée", on informe le confrère du suivi.
 
-STRUCTURE EXACTE (rien d'autre, pas de markdown, pas d'astérisques) :
+STRUCTURE EXACTE (rien d'autre, pas de markdown, pas d'astérisques, PAS de signature — elle sera ajoutée automatiquement) :
 Ligne 1 : Courrier médical
 Ligne 2 : ${dateStr}
 Ligne 3 : (vide)
@@ -37,15 +55,15 @@ Puis un corps SYNTHÉTIQUE en phrases courtes (pas de puces), 4 à 7 lignes maxi
 - 1 à 2 phrases : les éléments cliniques essentiels et la conclusion (diagnostic).
 - 1 phrase : "Conduite à tenir : [suivi/examens]."
 - 1 phrase : "Traitement prescrit : [médicaments avec posologie]."
-Puis :
-Ligne (vide)
-Bien confraternellement,
-Dr [à compléter]
+NE METS AUCUNE formule de politesse finale ni signature (le système les ajoute).
 
 RÈGLES : COURT et factuel. Interdits : "je vous adresse la patiente", "je vous remercie de votre attention", "n'hésitez pas à me contacter", "notre réunion". Reste fidèle au compte-rendu, n'invente rien, corrige les noms de médicaments.`;
-  const user = `Compte-rendu source :\n${crText}\n\nRédige la lettre de suivi COURTE en respectant exactement la structure.`;
-  const txt = await aiText.chat(system, user, { temperature: 0.2, maxTokens: 900 });
-  return txt || crText;
+  const user = `Compte-rendu source :\n${crText}\n\nRédige la lettre de suivi COURTE (sans signature) en respectant exactement la structure.`;
+  let body = await aiText.chat(system, user, { temperature: 0.2, maxTokens: 900 });
+  body = (body || crText).trim();
+  // Retire une éventuelle signature/politesse que l'IA aurait ajoutée malgré tout
+  body = body.replace(/\n+\s*(bien\s+confraternellement|cordialement|confraternellement|dr\.?\b|dr\s)[\s\S]*$/i, '').trim();
+  return body + '\n\n' + signatureBlock();
 }
 
 router.post('/recordings/:id/export', async (req, res) => {
