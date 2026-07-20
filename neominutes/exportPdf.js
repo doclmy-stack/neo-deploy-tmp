@@ -1,8 +1,10 @@
 /**
  * NeoMinutes - Service Export PDF (pdfkit).
  * mode: 'summary' | 'transcript' | 'letter'.
- * En mode summary, si fullSummary (texte déjà mis en forme) est fourni, on l'utilise
- * directement (fiable) ; sinon on reformate via templates.formatSummary.
+ * En-tête d'établissement PARAMÉTRABLE via .env :
+ *   HEADER_ORG       = "Centre Médical FOCH"
+ *   HEADER_SUBTITLE  = "Consultation du Dr Laurent Mamy"
+ * (défauts = ci-dessus). La date est ajoutée automatiquement.
  */
 
 const PDFDocument = require('pdfkit');
@@ -10,6 +12,9 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 const templates = require('../services/summarize');
+
+function headerOrg() { return process.env.HEADER_ORG || 'Centre Médical FOCH'; }
+function headerSubtitle() { return process.env.HEADER_SUBTITLE || 'Consultation du Dr Laurent Mamy'; }
 
 async function generatePdf(options) {
   const {
@@ -35,14 +40,15 @@ async function generatePdf(options) {
       size: 'A4',
       bufferPages: true,
       margins: { top: 55, bottom: 55, left: 55, right: 55 },
-      info: { Title: recording.title || 'Document NeoMinutes', Author: 'NeoMinutes', Creator: 'NeoMinutes' }
+      info: { Title: recording.title || 'Document NeoMinutes', Author: headerOrg(), Creator: 'NeoMinutes' }
     });
 
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
     const styles = {
-      title: { size: 20, color: '#1a1a2e' },
+      org: { size: 16, color: '#1a1a2e' },
+      title: { size: 15, color: '#1a1a2e' },
       sectionTitle: { size: 13, color: '#1a4b8c' },
       body: { size: 11, color: '#222222' },
       small: { size: 9, color: '#666666' },
@@ -59,6 +65,17 @@ async function generatePdf(options) {
     const pageBreak = (h) => { if (doc.y + h > doc.page.height - 55) doc.addPage(); };
     const dateStr = new Date(recording.createdAt || Date.now()).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
 
+    // En-tête d'établissement commun (CR + courrier)
+    const drawOrgHeader = (rightDate) => {
+      addText(headerOrg(), { ...styles.org, bold: true, align: 'center' });
+      if (headerSubtitle()) { doc.moveDown(0.1); addText(headerSubtitle(), { ...styles.caption, align: 'center' }); }
+      doc.moveDown(0.15);
+      addText(rightDate ? ('Le ' + dateStr) : dateStr, { ...styles.caption, align: 'center' });
+      doc.moveDown(0.4);
+      doc.moveTo(55, doc.y).lineTo(doc.page.width - 55, doc.y).stroke('#cccccc');
+      doc.moveDown(0.6);
+    };
+
     const finish = () => {
       finalizeFooter(doc);
       doc.end();
@@ -68,10 +85,10 @@ async function generatePdf(options) {
 
     // ============ COURRIER ============
     if (mode === 'letter') {
+      drawOrgHeader(false);
       const lines = String(letterText || '').split('\n');
-      lines.forEach((raw, i) => {
+      lines.forEach((raw) => {
         const l = raw.trim();
-        if (i === 0 && l) { addText(l, { ...styles.title, bold: true }); doc.moveDown(0.3); return; }
         if (l === '') { doc.moveDown(0.5); return; }
         addText(l, { ...styles.body, lineGap: 2 });
         pageBreak(20);
@@ -81,15 +98,10 @@ async function generatePdf(options) {
     }
 
     // ============ EN-TÊTE (summary / transcript) ============
-    addText(recording.title || (mode === 'transcript' ? 'Transcription' : 'Compte-rendu'), { ...styles.title, bold: true, align: 'center' });
-    doc.moveDown(0.3);
-    addText(`${mode === 'transcript' ? 'Transcription' : 'Compte-rendu'} • ${dateStr}`, { ...styles.caption, align: 'center' });
-    doc.moveDown(0.5);
-    doc.moveTo(55, doc.y).lineTo(doc.page.width - 55, doc.y).stroke('#cccccc');
-    doc.moveDown(0.6);
-
-    // ============ TRANSCRIPTION SEULE ============
+    drawOrgHeader(false);
     if (mode === 'transcript') {
+      addText('Transcription', { ...styles.title, bold: true });
+      doc.moveDown(0.4);
       String(transcript || '').split(/\n\n+/).forEach(p => {
         if (p.trim()) { addText(p.trim(), { ...styles.body, lineGap: 2 }); doc.moveDown(0.3); pageBreak(30); }
       });
@@ -98,16 +110,17 @@ async function generatePdf(options) {
     }
 
     // ============ COMPTE-RENDU ============
-    // Texte déjà formaté (fiable) sinon on reformate.
     const crText = fullSummary || (summary ? templates.formatSummary(templateId, summary) : '');
     for (const line of String(crText).split('\n')) {
       const l = line.replace(/\s+$/, '');
       if (l.startsWith('═') || l.startsWith('─') || l.trim() === '') { if (l.trim() === '') doc.moveDown(0.2); continue; }
-      // Titre de rubrique : MAJUSCULES courtes sans ponctuation de phrase
+      // On saute le gros titre "COMPTE-RENDU MÉDICAL" du texte (l'en-tête établissement le remplace)
+      if (/^COMPTE-RENDU/.test(l.trim())) continue;
       const isSection = l === l.toUpperCase() && l.trim().length > 2 && l.trim().length < 60 && !/[.]/.test(l);
       if (l.startsWith('## ')) { doc.moveDown(0.4); addText(l.replace('## ', ''), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.2); }
       else if (isSection) { doc.moveDown(0.4); addText(l.trim(), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.15); }
       else if (l.startsWith('- ') || l.match(/^\d+\.\s/)) { addText(l.replace(/^[-\d.]+\s*/, '•  '), { ...styles.body, indent: 8 }); }
+      else if (l.startsWith('•')) { addText(l, { ...styles.body, indent: 8 }); }
       else { addText(l, styles.body); }
       pageBreak(20);
     }
@@ -125,10 +138,9 @@ async function generatePdf(options) {
   });
 }
 
-// Footer robuste : compatible pdfkit où les pages sont indexées à partir de 0 OU 1.
 function finalizeFooter(doc) {
   try {
-    const range = doc.bufferedPageRange(); // { start, count }
+    const range = doc.bufferedPageRange();
     if (!range || !range.count) return;
     for (let i = 0; i < range.count; i++) {
       const pageIndex = range.start + i;
@@ -136,7 +148,7 @@ function finalizeFooter(doc) {
         doc.switchToPage(pageIndex);
         doc.fontSize(8).fillColor('#999999').font('Helvetica')
           .text('Généré par NeoMinutes', 55, doc.page.height - 35, { align: 'center' });
-      } catch (inner) { /* page hors buffer : on ignore cette page */ }
+      } catch (inner) { /* ignore */ }
     }
   } catch (e) {
     console.warn('[Export] Footer ignoré:', e.message);
