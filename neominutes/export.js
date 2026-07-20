@@ -1,9 +1,9 @@
 /**
  * NeoMinutes - Routes: Export
- * Export des comptes-rendus en différents formats.
- * Body: { format, template, includeTranscript, content, recipient }
- *   content: 'summary' (défaut) | 'transcript' | 'letter'
- *   recipient: { name, role } pour le courrier médecin (content='letter')
+ * content: 'summary' (défaut) | 'transcript' | 'letter'
+ * ⚠️ Pour le PDF/Word en mode summary, on réutilise le full_summary DÉJÀ FORMATÉ
+ * (généré avec le bon template) au lieu de le refabriquer avec un template éventuellement
+ * différent (sinon le doc ne contient que les mots-clés = bug PDF vide).
  */
 
 const express = require('express');
@@ -18,38 +18,32 @@ const aiText = require('../services/aiText');
 const { fireWebhookEvent } = require('../services/webhook');
 
 /**
- * Génère le texte d'un courrier médical COURT et confraternel à partir du compte-rendu (via IA).
+ * Courrier médical STRUCTURÉ et concis, rédigé par l'IA à partir du compte-rendu.
  */
-async function buildLetterText(recording, summary, templateId, recipient) {
-  const crText = templates.formatSummary(templateId, summary || {});
+async function buildLetterText(recording, summaryData, fullSummary, templateId, recipient) {
+  const crText = fullSummary || templates.formatSummary(templateId, summaryData || {});
   const dest = (recipient && recipient.name) ? recipient.name : 'Cher(e) Confrère';
   const dateStr = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
-  const system = `Tu es un médecin qui rédige une COURTE lettre confraternelle à un confrère (médecin traitant / correspondant), à partir d'un compte-rendu de consultation.
+  const system = `Tu es médecin. Tu rédiges une COURTE lettre confraternelle de SUIVI (compte-rendu adressé au médecin traitant / correspondant), à partir d'un compte-rendu de consultation. Ce n'est PAS une lettre d'orientation : la patiente n'est pas "adressée", on informe le confrère du suivi.
 
-FORMAT EXACT (rien d'autre) :
-- Ligne 1 : "Courrier médical" (titre).
-- Ligne suivante : la date, alignée à droite conceptuellement (ex : "Paris, le ${dateStr}").
-- Appel : "${dest}," (si le destinataire est une personne nommée, garde son nom ; sinon "Cher(e) Confrère,").
-- CORPS TRÈS SYNTHÉTIQUE, 3 à 6 phrases maximum, style direct et confraternel :
-   • 1 phrase : "Je vous adresse votre patiente [Nom si connu] qui consulte pour [motif]."
-   • 1-2 phrases : les éléments cliniques essentiels / la conclusion (diagnostic).
-   • 1 phrase : "Le traitement prescrit est : [liste courte des médicaments avec posologie]."
-   • éventuellement 1 phrase de conduite à tenir / suivi si pertinent.
-- Formule de fin : "Bien confraternellement," puis à la ligne "Dr [à compléter]".
+STRUCTURE EXACTE (rien d'autre, pas de markdown, pas d'astérisques) :
+Ligne 1 : Courrier médical
+Ligne 2 : ${dateStr}
+Ligne 3 : (vide)
+Ligne 4 : ${dest},
+Ligne 5 : (vide)
+Puis un corps SYNTHÉTIQUE en phrases courtes (pas de puces), 4 à 7 lignes maximum, couvrant dans l'ordre :
+- 1 phrase : "Je vous informe du suivi de votre patiente [Nom si connu], vue en consultation pour [motif]."
+- 1 à 2 phrases : les éléments cliniques essentiels et la conclusion (diagnostic).
+- 1 phrase : "Conduite à tenir : [suivi/examens]."
+- 1 phrase : "Traitement prescrit : [médicaments avec posologie]."
+Puis :
+Ligne (vide)
+Bien confraternellement,
+Dr [à compléter]
 
-RÈGLES STRICTES :
-- COURT et factuel. PAS de "notre réunion", PAS de blabla ("je vous remercie de votre attention", "n'hésitez pas à me contacter" => À BANNIR).
-- Reste fidèle au compte-rendu, n'invente rien. Corrige les noms de médicaments mal orthographiés.
-- Pas de markdown, pas d'astérisques, pas de listes à puces : des phrases.`;
-  const user = `Date : ${dateStr}
-Destinataire : ${dest}
-Patient / sujet : ${recording.title || ''}
-
-=== COMPTE-RENDU SOURCE ===
-${crText}
-=== FIN ===
-
-Rédige la lettre COURTE, prête à imprimer, en respectant exactement le format demandé.`;
+RÈGLES : COURT et factuel. Interdits : "je vous adresse la patiente", "je vous remercie de votre attention", "n'hésitez pas à me contacter", "notre réunion". Reste fidèle au compte-rendu, n'invente rien, corrige les noms de médicaments.`;
+  const user = `Compte-rendu source :\n${crText}\n\nRédige la lettre de suivi COURTE en respectant exactement la structure.`;
   const txt = await aiText.chat(system, user, { temperature: 0.2, maxTokens: 900 });
   return txt || crText;
 }
@@ -58,10 +52,10 @@ router.post('/recordings/:id/export', async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      format = 'docx',            // docx, pdf, markdown, txt
+      format = 'docx',
       template,
       includeTranscript = false,
-      content = 'summary',        // summary | transcript | letter
+      content = 'summary',
       recipient = null
     } = req.body;
 
@@ -71,47 +65,46 @@ router.post('/recordings/:id/export', async (req, res) => {
     }
 
     const recording = recordingModel.getById(id);
-    if (!recording) {
-      return res.status(404).json({ error: 'Non trouvé', message: `Enregistrement ${id} introuvable` });
-    }
+    if (!recording) return res.status(404).json({ error: 'Non trouvé', message: `Enregistrement ${id} introuvable` });
 
-    // Transcription (nécessaire pour content transcript, ou si demandée, ou txt/markdown)
     let transcript = null;
     if (content === 'transcript' || includeTranscript || format === 'txt' || format === 'markdown') {
       const transcriptData = recordingModel.getTranscript(id);
       transcript = transcriptData?.content || null;
     }
 
-    // Résumé
-    let summary = null;
-    let templateId = template || recording.summary?.template || 'auto';
+    // Résumé : on récupère data + full_summary + le template AVEC LEQUEL il a été généré
+    let summaryData = null, fullSummary = null;
+    let templateId = template || 'auto';
     if (content !== 'transcript') {
-      const summaryData = recordingModel.getSummary(id);
-      summary = summaryData?.data || null;
-      if (summaryData && summaryData.template) templateId = template || summaryData.template;
-      if (!summary && content !== 'transcript') {
+      const s = recordingModel.getSummary(id);
+      summaryData = s?.data || null;
+      fullSummary = s?.full_summary || s?.fullSummary || null;
+      // ⚠️ priorité au template réellement utilisé pour générer (sinon PDF vide)
+      if (s && s.template) templateId = s.template;
+      if (!summaryData && !fullSummary) {
         return res.status(400).json({ error: 'Pas de résumé', message: 'Générez d\'abord un compte-rendu' });
       }
     }
 
-    console.log(`[Export] ${id} format=${format} content=${content}`);
+    console.log(`[Export] ${id} format=${format} content=${content} template=${templateId}`);
 
     let result;
-
     if (format === 'pdf') {
       if (content === 'letter') {
-        const letterText = await buildLetterText(recording, summary, templateId, recipient);
-        result = await exportPdf.generatePdf({ recording, summary, templateId, mode: 'letter', letterText });
+        const letterText = await buildLetterText(recording, summaryData, fullSummary, templateId, recipient);
+        result = await exportPdf.generatePdf({ recording, mode: 'letter', letterText });
       } else if (content === 'transcript') {
         result = await exportPdf.generatePdf({ recording, transcript, mode: 'transcript' });
       } else {
-        result = await exportPdf.generatePdf({ recording, transcript, summary, templateId, mode: 'summary', includeTranscript });
+        // summary : on passe le texte DÉJÀ formaté (fiable)
+        result = await exportPdf.generatePdf({ recording, summary: summaryData, fullSummary, templateId, mode: 'summary', includeTranscript, transcript });
       }
     } else if (format === 'docx') {
-      result = await exportWord.generateWord({ recording, transcript, summary, templateId, format: 'docx', includeTranscript });
+      result = await exportWord.generateWord({ recording, transcript, summary: summaryData, templateId, format: 'docx', includeTranscript });
     } else if (format === 'markdown') {
-      result = await generateMarkdown(id, recording, transcript, summary, templateId, includeTranscript);
-    } else { // txt
+      result = await generateMarkdown(id, recording, transcript, summaryData, fullSummary, templateId, includeTranscript);
+    } else {
       result = await generateTxt(id, recording, transcript, includeTranscript);
     }
 
@@ -127,25 +120,14 @@ router.post('/recordings/:id/export', async (req, res) => {
   }
 });
 
-/**
- * Générer un export Markdown
- */
-async function generateMarkdown(id, recording, transcript, summary, templateId, includeTranscript) {
-  const templatesService = require('../services/summarize');
+async function generateMarkdown(id, recording, transcript, summaryData, fullSummary, templateId, includeTranscript) {
   const fs = require('fs');
-
   let content = '';
   content += `# ${recording.title || 'Compte-rendu'}\n\n`;
-  content += `*Généré le ${new Date(recording.createdAt).toLocaleDateString('fr-FR')}*\n\n`;
-  if (recording.participants?.length) content += `**Participants:** ${recording.participants.join(', ')}\n\n`;
-  if (recording.tags?.length) content += `**Tags:** ${recording.tags.join(', ')}\n\n`;
-  content += '---\n\n';
-  if (summary) content += templatesService.formatSummary(templateId, summary) + '\n\n';
-  if (includeTranscript && transcript) {
-    content += '---\n\n## Transcription complète\n\n' + transcript + '\n';
-  }
+  content += `*Généré le ${new Date(recording.createdAt).toLocaleDateString('fr-FR')}*\n\n---\n\n`;
+  content += (fullSummary || templates.formatSummary(templateId, summaryData || {})) + '\n\n';
+  if (includeTranscript && transcript) content += '---\n\n## Transcription complète\n\n' + transcript + '\n';
   content += '\n---\n*Généré par NeoMinutes*\n';
-
   const outputDir = path.join(__dirname, '..', '..', 'exports');
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
   const filename = `neominutes-${id}-${Date.now()}.md`;
@@ -154,22 +136,13 @@ async function generateMarkdown(id, recording, transcript, summary, templateId, 
   return { filePath, fileSize: fs.statSync(filePath).size, filename };
 }
 
-/**
- * Générer un export TXT simple
- */
 async function generateTxt(id, recording, transcript, includeTranscript) {
   const fs = require('fs');
   let content = '';
-  content += '═════════════════════════════════════════════════════════════\n';
-  content += `  ${recording.title || 'COMPTE-RENDU'}\n`;
-  content += '═════════════════════════════════════════════════════════════\n\n';
-  content += `Date: ${new Date(recording.createdAt).toLocaleDateString('fr-FR')}\n`;
-  if (recording.participants?.length) content += `Participants: ${recording.participants.join(', ')}\n`;
-  content += '\n─────────────────────────────────────────────────────────────\n\n';
+  content += `${recording.title || 'COMPTE-RENDU'}\n`;
+  content += `Date: ${new Date(recording.createdAt).toLocaleDateString('fr-FR')}\n\n`;
   if (includeTranscript && transcript) content += 'TRANSCRIPTION\n\n' + transcript + '\n';
-  content += '\n─────────────────────────────────────────────────────────────\n';
-  content += 'Généré par NeoMinutes\n';
-
+  content += '\nGénéré par NeoMinutes\n';
   const outputDir = path.join(__dirname, '..', '..', 'exports');
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
   const filename = `neominutes-${id}-${Date.now()}.txt`;
@@ -178,9 +151,6 @@ async function generateTxt(id, recording, transcript, includeTranscript) {
   return { filePath, fileSize: fs.statSync(filePath).size, filename };
 }
 
-/**
- * GET /recordings/:id/exports - Lister les exports
- */
 router.get('/recordings/:id/exports', async (req, res) => {
   try {
     const { id } = req.params;
@@ -188,7 +158,6 @@ router.get('/recordings/:id/exports', async (req, res) => {
     const exportsWithUrls = exports.map(e => ({ ...e, fileUrl: storage.getPublicUrl(e.filePath) }));
     res.json({ success: true, exports: exportsWithUrls });
   } catch (error) {
-    console.error('[Export] Erreur liste:', error);
     res.status(500).json({ error: 'Erreur serveur', message: error.message });
   }
 });
