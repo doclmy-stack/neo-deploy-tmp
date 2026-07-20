@@ -78,9 +78,9 @@ function getUserPrompt(transcript, templateId, length = 'standard') {
     ? `"${f}": ["élément1", "élément2"]`
     : `"${f}": "texte"`);
   const schema = '{ ' + schemaParts.join(', ') + ', "keywords": ["mot1", "mot2"] }';
-  prompt += `\nRÉPONDS UNIQUEMENT avec un objet JSON valide (aucun texte avant ou après), avec EXACTEMENT ces clés :\n`;
+  prompt += `\nRÉPONDS UNIQUEMENT avec un objet JSON valide (aucun texte avant ou après, PAS de balise markdown, PAS de \`\`\`), avec EXACTEMENT ces clés :\n`;
   prompt += schema + '\n';
-  prompt += `Les champs entre crochets [] sont des tableaux (listes) ; les autres sont des chaînes de texte. "keywords" est un tableau. Rédige en français. Mets "" ou [] si l'information est absente. N'invente rien.`;
+  prompt += `Les champs entre crochets [] sont des tableaux (listes) ; les autres sont des chaînes de texte. "keywords" est un tableau. Rédige en français, de façon COMPLÈTE et détaillée (ne laisse pas les champs vides si l'information existe). Mets "" ou [] seulement si l'information est réellement absente. N'invente rien. Commence ta réponse directement par { et termine par }.`;
 
   return prompt;
 }
@@ -142,18 +142,35 @@ Respond only in valid JSON with: executive, decisions[], actions[], openQuestion
 }
 
 /**
- * Parser la réponse JSON du LLM (robuste)
+ * Parser la réponse JSON du LLM (ULTRA robuste).
+ * Gère : objet déjà parsé, balises ```json ... ```, texte avant/après,
+ * et JSON légèrement malformé (dernier recours).
  */
 function parseLLMResponse(responseText) {
   if (responseText && typeof responseText === 'object') return responseText;
-  try {
-    const jsonMatch = String(responseText).match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return JSON.parse(responseText);
-  } catch (error) {
-    console.error('[Templates] Erreur parsing JSON:', error.message);
-    return { executive: String(responseText || ''), decisions: [], actions: [], openQuestions: [], keywords: [] };
+
+  let s = String(responseText || '').trim();
+
+  // 1) Retirer les clôtures markdown ```json ... ``` où qu'elles soient
+  s = s.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+  // 2) Essai direct
+  try { return JSON.parse(s); } catch (e) {}
+
+  // 3) Extraire du premier { au dernier }
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) {
+    const cut = s.slice(a, b + 1);
+    try { return JSON.parse(cut); } catch (e) {}
+    // 4) Dernier recours : réparer les erreurs fréquentes (virgules traînantes)
+    try {
+      const repaired = cut.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+      return JSON.parse(repaired);
+    } catch (e) {}
   }
+
+  console.error('[Templates] Erreur parsing JSON — réponse brute (300c):', s.slice(0, 300));
+  return { executive: String(responseText || ''), decisions: [], actions: [], openQuestions: [], keywords: [] };
 }
 
 module.exports = {
