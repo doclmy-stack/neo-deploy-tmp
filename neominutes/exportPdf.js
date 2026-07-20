@@ -1,10 +1,8 @@
 /**
  * NeoMinutes - Service Export PDF (pdfkit).
  * mode: 'summary' | 'transcript' | 'letter'.
- * En-tête d'établissement PARAMÉTRABLE via .env :
- *   HEADER_ORG       = "Centre Médical FOCH"
- *   HEADER_SUBTITLE  = "Consultation du Dr Laurent Mamy"
- * (défauts = ci-dessus). La date est ajoutée automatiquement.
+ * En-tête établissement paramétrable : HEADER_ORG, HEADER_SUBTITLE (.env).
+ * Courrier = mise en page COMPACTE (tient sur 1 page).
  */
 
 const PDFDocument = require('pdfkit');
@@ -18,14 +16,8 @@ function headerSubtitle() { return process.env.HEADER_SUBTITLE || 'Consultation 
 
 async function generatePdf(options) {
   const {
-    recording,
-    transcript,
-    summary,
-    fullSummary = null,
-    templateId,
-    includeTranscript = false,
-    mode = 'summary',
-    letterText = ''
+    recording, transcript, summary, fullSummary = null, templateId,
+    includeTranscript = false, mode = 'summary', letterText = ''
   } = options;
 
   const outputDir = path.join(__dirname, '..', '..', 'exports');
@@ -39,20 +31,19 @@ async function generatePdf(options) {
     const doc = new PDFDocument({
       size: 'A4',
       bufferPages: true,
-      margins: { top: 55, bottom: 55, left: 55, right: 55 },
+      margins: { top: 48, bottom: 48, left: 55, right: 55 },
       info: { Title: recording.title || 'Document NeoMinutes', Author: headerOrg(), Creator: 'NeoMinutes' }
     });
-
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
     const styles = {
-      org: { size: 16, color: '#1a1a2e' },
-      title: { size: 15, color: '#1a1a2e' },
-      sectionTitle: { size: 13, color: '#1a4b8c' },
+      org: { size: 15, color: '#1a1a2e' },
+      title: { size: 14, color: '#1a1a2e' },
+      sectionTitle: { size: 12, color: '#1a4b8c' },
       body: { size: 11, color: '#222222' },
       small: { size: 9, color: '#666666' },
-      caption: { size: 10, color: '#666666', italic: true }
+      caption: { size: 9, color: '#666666', italic: true }
     };
 
     const addText = (text, opts = {}) => {
@@ -62,18 +53,17 @@ async function generatePdf(options) {
       else doc.font('Helvetica');
       doc.text(text, opts);
     };
-    const pageBreak = (h) => { if (doc.y + h > doc.page.height - 55) doc.addPage(); };
+    const pageBreak = (h) => { if (doc.y + h > doc.page.height - 48) doc.addPage(); };
     const dateStr = new Date(recording.createdAt || Date.now()).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    // En-tête d'établissement commun (CR + courrier)
-    const drawOrgHeader = (rightDate) => {
+    // En-tête établissement compact
+    const drawOrgHeader = () => {
       addText(headerOrg(), { ...styles.org, bold: true, align: 'center' });
-      if (headerSubtitle()) { doc.moveDown(0.1); addText(headerSubtitle(), { ...styles.caption, align: 'center' }); }
-      doc.moveDown(0.15);
-      addText(rightDate ? ('Le ' + dateStr) : dateStr, { ...styles.caption, align: 'center' });
-      doc.moveDown(0.4);
+      if (headerSubtitle()) addText(headerSubtitle(), { ...styles.caption, align: 'center' });
+      addText(dateStr, { ...styles.caption, align: 'center' });
+      doc.moveDown(0.25);
       doc.moveTo(55, doc.y).lineTo(doc.page.width - 55, doc.y).stroke('#cccccc');
-      doc.moveDown(0.6);
+      doc.moveDown(0.4);
     };
 
     const finish = () => {
@@ -83,27 +73,26 @@ async function generatePdf(options) {
       stream.on('error', reject);
     };
 
-    // ============ COURRIER ============
+    // ============ COURRIER (compact, 1 page) ============
     if (mode === 'letter') {
-      drawOrgHeader(false);
+      drawOrgHeader();
       const lines = String(letterText || '').split('\n');
       lines.forEach((raw) => {
         const l = raw.trim();
-        if (l === '') { doc.moveDown(0.5); return; }
-        addText(l, { ...styles.body, lineGap: 2 });
-        pageBreak(20);
+        if (l === '') { doc.moveDown(0.35); return; }
+        addText(l, { ...styles.body, lineGap: 1, paragraphGap: 2 });
       });
       finish();
       return;
     }
 
     // ============ EN-TÊTE (summary / transcript) ============
-    drawOrgHeader(false);
+    drawOrgHeader();
     if (mode === 'transcript') {
       addText('Transcription', { ...styles.title, bold: true });
-      doc.moveDown(0.4);
+      doc.moveDown(0.3);
       String(transcript || '').split(/\n\n+/).forEach(p => {
-        if (p.trim()) { addText(p.trim(), { ...styles.body, lineGap: 2 }); doc.moveDown(0.3); pageBreak(30); }
+        if (p.trim()) { addText(p.trim(), { ...styles.body, lineGap: 1 }); doc.moveDown(0.25); pageBreak(30); }
       });
       finish();
       return;
@@ -113,16 +102,15 @@ async function generatePdf(options) {
     const crText = fullSummary || (summary ? templates.formatSummary(templateId, summary) : '');
     for (const line of String(crText).split('\n')) {
       const l = line.replace(/\s+$/, '');
-      if (l.startsWith('═') || l.startsWith('─') || l.trim() === '') { if (l.trim() === '') doc.moveDown(0.2); continue; }
-      // On saute le gros titre "COMPTE-RENDU MÉDICAL" du texte (l'en-tête établissement le remplace)
+      if (l.startsWith('═') || l.startsWith('─') || l.trim() === '') { if (l.trim() === '') doc.moveDown(0.15); continue; }
       if (/^COMPTE-RENDU/.test(l.trim())) continue;
       const isSection = l === l.toUpperCase() && l.trim().length > 2 && l.trim().length < 60 && !/[.]/.test(l);
-      if (l.startsWith('## ')) { doc.moveDown(0.4); addText(l.replace('## ', ''), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.2); }
-      else if (isSection) { doc.moveDown(0.4); addText(l.trim(), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.15); }
-      else if (l.startsWith('- ') || l.match(/^\d+\.\s/)) { addText(l.replace(/^[-\d.]+\s*/, '•  '), { ...styles.body, indent: 8 }); }
-      else if (l.startsWith('•')) { addText(l, { ...styles.body, indent: 8 }); }
-      else { addText(l, styles.body); }
-      pageBreak(20);
+      if (l.startsWith('## ')) { doc.moveDown(0.3); addText(l.replace('## ', ''), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.15); }
+      else if (isSection) { doc.moveDown(0.3); addText(l.trim(), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.1); }
+      else if (l.startsWith('- ') || l.match(/^\d+\.\s/)) { addText(l.replace(/^[-\d.]+\s*/, '•  '), { ...styles.body, indent: 8, lineGap: 1 }); }
+      else if (l.startsWith('•')) { addText(l, { ...styles.body, indent: 8, lineGap: 1 }); }
+      else { addText(l, { ...styles.body, lineGap: 1 }); }
+      pageBreak(18);
     }
 
     if (includeTranscript && transcript) {
@@ -130,7 +118,7 @@ async function generatePdf(options) {
       addText('Transcription complète (annexe)', { ...styles.sectionTitle, bold: true });
       doc.moveDown(0.3);
       String(transcript).split(/\n\n+/).forEach(p => {
-        if (p.trim()) { addText(p.trim(), { ...styles.small, lineGap: 2 }); doc.moveDown(0.3); pageBreak(30); }
+        if (p.trim()) { addText(p.trim(), { ...styles.small, lineGap: 1 }); doc.moveDown(0.25); pageBreak(30); }
       });
     }
 
@@ -147,7 +135,7 @@ function finalizeFooter(doc) {
       try {
         doc.switchToPage(pageIndex);
         doc.fontSize(8).fillColor('#999999').font('Helvetica')
-          .text('Généré par NeoMinutes', 55, doc.page.height - 35, { align: 'center' });
+          .text('Généré par NeoMinutes', 55, doc.page.height - 32, { align: 'center' });
       } catch (inner) { /* ignore */ }
     }
   } catch (e) {
