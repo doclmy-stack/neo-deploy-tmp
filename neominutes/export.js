@@ -18,19 +18,39 @@ const aiText = require('../services/aiText');
 const { fireWebhookEvent } = require('../services/webhook');
 
 /**
- * Génère le texte d'un courrier médical à partir du compte-rendu (via IA).
+ * Génère le texte d'un courrier médical COURT et confraternel à partir du compte-rendu (via IA).
  */
 async function buildLetterText(recording, summary, templateId, recipient) {
   const crText = templates.formatSummary(templateId, summary || {});
-  const dest = (recipient && recipient.name) ? recipient.name : 'Cher Confrère, Chère Consœur';
+  const dest = (recipient && recipient.name) ? recipient.name : 'Cher(e) Confrère';
   const dateStr = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
-  const system = `Tu es un médecin qui rédige un COURRIER médical concis et professionnel à un confrère (médecin traitant ou correspondant), à partir d'un compte-rendu.
-RÈGLES :
-- Format lettre : lieu/date en haut à droite, appel ("Cher Confrère,"), corps synthétique (motif, éléments cliniques, conclusion, conduite à tenir / traitement), formule de politesse confraternelle, signature "Dr [à compléter]".
-- Reste STRICTEMENT fidèle au compte-rendu : n'invente aucune donnée. Style fluide, pas de listes à puces, des phrases.
-- Ne mets pas d'en-tête markdown ni d'astérisques.`;
-  const user = `Date : ${dateStr}\nDestinataire : ${dest}\nPatient / sujet : ${recording.title || ''}\n\n=== COMPTE-RENDU SOURCE ===\n${crText}\n=== FIN ===\n\nRédige le courrier complet, prêt à imprimer.`;
-  const txt = await aiText.chat(system, user, { temperature: 0.3, maxTokens: 1500 });
+  const system = `Tu es un médecin qui rédige une COURTE lettre confraternelle à un confrère (médecin traitant / correspondant), à partir d'un compte-rendu de consultation.
+
+FORMAT EXACT (rien d'autre) :
+- Ligne 1 : "Courrier médical" (titre).
+- Ligne suivante : la date, alignée à droite conceptuellement (ex : "Paris, le ${dateStr}").
+- Appel : "${dest}," (si le destinataire est une personne nommée, garde son nom ; sinon "Cher(e) Confrère,").
+- CORPS TRÈS SYNTHÉTIQUE, 3 à 6 phrases maximum, style direct et confraternel :
+   • 1 phrase : "Je vous adresse votre patiente [Nom si connu] qui consulte pour [motif]."
+   • 1-2 phrases : les éléments cliniques essentiels / la conclusion (diagnostic).
+   • 1 phrase : "Le traitement prescrit est : [liste courte des médicaments avec posologie]."
+   • éventuellement 1 phrase de conduite à tenir / suivi si pertinent.
+- Formule de fin : "Bien confraternellement," puis à la ligne "Dr [à compléter]".
+
+RÈGLES STRICTES :
+- COURT et factuel. PAS de "notre réunion", PAS de blabla ("je vous remercie de votre attention", "n'hésitez pas à me contacter" => À BANNIR).
+- Reste fidèle au compte-rendu, n'invente rien. Corrige les noms de médicaments mal orthographiés.
+- Pas de markdown, pas d'astérisques, pas de listes à puces : des phrases.`;
+  const user = `Date : ${dateStr}
+Destinataire : ${dest}
+Patient / sujet : ${recording.title || ''}
+
+=== COMPTE-RENDU SOURCE ===
+${crText}
+=== FIN ===
+
+Rédige la lettre COURTE, prête à imprimer, en respectant exactement le format demandé.`;
+  const txt = await aiText.chat(system, user, { temperature: 0.2, maxTokens: 900 });
   return txt || crText;
 }
 
