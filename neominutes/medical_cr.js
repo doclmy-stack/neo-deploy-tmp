@@ -1,68 +1,56 @@
 /**
- * NeoMinutes - Template: Compte-rendu médical (consultation)
- * Version renforcée : définitions STRICTES des rubriques + exemple, pour éviter
- * la confusion motif / antécédents / examen (fréquente avec les petits modèles).
- * asLines() normalise les listes en vraies puces "• " (même si l'IA renvoie
- * une seule chaîne "- A, - B" ou un tableau).
+ * NeoMinutes - Template: Compte-rendu médical (consultation) — STYLE RÉDIGÉ.
+ * Phrases complètes, UNE idée par ligne (une phrase = une ligne).
+ * Ouverture imposée : "Je vois ce jour Mme [Nom], née le [DDN], pour : [motif]."
  */
 
-const asLines = (val) => {
+// Découpe un champ en phrases → une par ligne (chaque phrase se termine par un point).
+const asSentences = (val) => {
   if (val == null) return '';
-  let items = [];
-  if (Array.isArray(val)) {
-    items = val.map(v => String(v));
-  } else {
-    // Chaîne : on découpe sur " - ", "; ", " • " ou retours à la ligne
-    const s = String(val).trim();
-    if (/(^|\s)[-•]\s|;\s|\n/.test(s)) {
-      items = s.split(/\s*[-•]\s+|\s*;\s+|\n+/);
-    } else {
-      items = [s];
-    }
-  }
-  items = items.map(x => x.replace(/^[-•\s]+/, '').trim()).filter(Boolean);
-  if (items.length <= 1) return items.join('');           // texte simple : pas de puce
-  return items.map(x => `•  ${x}`).join('\n');            // liste : une puce par élément
+  let raw = Array.isArray(val) ? val.join('. ') : String(val);
+  raw = raw.replace(/\s*[-•]\s*/g, '. ')        // transforme les puces en phrases
+           .replace(/\s*;\s*/g, '. ');
+  // découpe sur les fins de phrase
+  const parts = raw.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(Boolean);
+  return parts.map(s => (/[.!?]$/.test(s) ? s : s + '.')).join('\n');
 };
 
 module.exports = {
   id: 'medical_cr',
   name: 'Compte-rendu médical',
-  description: 'Compte-rendu de consultation (motif, antécédents, examen, conclusion, CAT, prescriptions)',
-  fields: ['motif', 'antecedents', 'examen', 'conclusion', 'conduite_a_tenir', 'prescriptions'],
-  arrayFields: ['examen', 'prescriptions'],
+  description: 'Compte-rendu de consultation rédigé (phrases, 1 idée par ligne)',
+  fields: ['patient', 'ddn', 'motif', 'antecedents', 'examen', 'conclusion', 'conduite_a_tenir', 'prescriptions'],
 
-  systemPrompt: `Tu es un médecin qui rédige un compte-rendu de consultation à partir de la transcription (parfois imparfaite) d'un échange médical.
+  systemPrompt: `Tu es un médecin (gynécologue-obstétricien) qui rédige un compte-rendu de consultation à partir de la transcription (parfois imparfaite) d'un échange médical.
 
-DÉFINITION STRICTE DE CHAQUE RUBRIQUE (ne JAMAIS les confondre) :
-- MOTIF = UNIQUEMENT la ou les raison(s) pour lesquelles la patiente consulte AUJOURD'HUI (le symptôme/la demande du jour, ex : "démangeaisons depuis 2 semaines", "suivi annuel"). RIEN d'autre.
-- ANTÉCÉDENTS = le PASSÉ et le contexte permanent : gestité/parité (G/P), âge, contraception en cours, tabac/alcool, sport, poids/taille, dernières règles (DDR), bilans antérieurs, maladies/chirurgies passées, allergies. JAMAIS le symptôme du jour ici.
-- EXAMEN = ce qui est CONSTATÉ pendant la consultation : symptômes rapportés + observations cliniques (spéculum, palpation, échographie, frottis…).
-- CONCLUSION = le diagnostic ou les hypothèses diagnostiques.
-- CONDUITE À TENIR = décisions : examens complémentaires, suivi, orientation, renouvellements.
+STYLE OBLIGATOIRE :
+- Des PHRASES COMPLÈTES et fluides (pas de style télégraphique, pas de puces).
+- UNE seule idée par phrase.
+- Rédige à la 1re personne ("Je vois", "Je retrouve", "Je prescris").
+
+DÉFINITION STRICTE DES RUBRIQUES (ne jamais les confondre) :
+- patient = nom de la patiente si mentionné (sinon "").
+- ddn = date de naissance si mentionnée (sinon "").
+- MOTIF = la ou les raisons de la consultation du JOUR (le symptôme/la demande du jour).
+- ANTÉCÉDENTS = passé/contexte : gestité-parité (G/P), âge, contraception, tabac/alcool, DDR, bilans antérieurs, chirurgies, allergies. Jamais le symptôme du jour.
+- EXAMEN = ce qui est constaté (spéculum, palpation, échographie, frottis, symptômes rapportés).
+- CONCLUSION = diagnostic ou hypothèses.
+- CONDUITE À TENIR = examens complémentaires, suivi, orientation, renouvellements.
 - PRESCRIPTIONS = médicaments avec posologie (noms corrigés).
 
-RÈGLES :
-- Sois FIDÈLE : n'invente RIEN qui ne soit dans la transcription.
-- CORRIGE les termes médicaux et noms de médicaments mal transcrits (ex : "mi-cause"→"mycose", "Omexin"→"Lomexin", "Pévisonne"→"Pévisone", "Eurofluco/Oroflucos"→"Fluconazole").
-- Pour EXAMEN et PRESCRIPTIONS : renvoie un TABLEAU JSON, un élément par item (ex : ["item1","item2"]). Ne mets pas plusieurs items dans une même chaîne.
+RÈGLES : n'invente RIEN. Corrige les termes/médicaments mal transcrits (ex : "mi-cause"→"mycose", "Omexin"→"Lomexin", "Pévisonne"→"Pévisone", "Eurofluco"→"Fluconazole").`,
 
-EXEMPLE de bon classement (patiente qui consulte pour démangeaisons, G3P2 sous pilule) :
-- motif : "Démangeaisons vulvaires depuis 2 semaines ; suivi annuel."
-- antecedents : "36 ans, G3P2, contraception par pilule, non-fumeuse, non-buveuse, DDR le 12/07/2026, cholestérol limite au dernier bilan."
-- examen : ["Leucorrhées avec inflammation vulvaire externe évoquant une mycose, lésions de grattage", "Spéculum : col normal, frottis réalisé", "Palpation mammaire normale", "Échographie pelvienne normale"]
-- conclusion : "Mycose vulvo-vaginale."
-Note bien : la contraception et G3P2 vont dans ANTÉCÉDENTS, pas dans le motif.`,
+  userPromptInstructions: `Remplis chaque champ en PHRASES (une idée par phrase) :
+- patient : nom de la patiente (ou "").
+- ddn : date de naissance (ou "").
+- motif : phrase(s) décrivant la raison de la consultation du jour.
+- antecedents : phrases sur le passé/contexte (G/P, âge, contraception, DDR, bilans…).
+- examen : une phrase par observation clinique.
+- conclusion : le diagnostic en une ou deux phrases.
+- conduite_a_tenir : une phrase par décision (examens, suivi, renouvellements).
+- prescriptions : une phrase par médicament (avec posologie).
 
-  userPromptInstructions: `Rédige le compte-rendu en classant CHAQUE information dans la bonne rubrique selon les définitions strictes ci-dessus :
-- MOTIF : seulement la raison de la consultation du jour.
-- ANTÉCÉDENTS : G/P, âge, contraception, tabac/alcool, DDR, bilans/poids, histoire médicale.
-- EXAMEN : symptômes + observations cliniques (TABLEAU, un élément par observation).
-- CONCLUSION : diagnostic ou hypothèses.
-- CONDUITE À TENIR : examens complémentaires, suivi, renouvellements.
-- PRESCRIPTIONS : médicaments + posologie (TABLEAU, un élément par médicament, noms corrigés).
-
-Vérifie AVANT de répondre que rien du "motif" ne se retrouve dans "antécédents" et inversement. N'invente rien.`,
+N'invente rien ; laisse "" si l'information est absente.`,
 
   formatOutput: (summary) => {
     const line = '─────────────────────────────────────────────────────────\n';
@@ -71,13 +59,18 @@ Vérifie AVANT de répondre que rien du "motif" ne se retrouve dans "antécéden
     output += '                   COMPTE-RENDU MÉDICAL\n';
     output += '═══════════════════════════════════════════════════════════\n\n';
 
+    // Phrase d'ouverture imposée
+    const nom = (summary.patient && String(summary.patient).trim()) ? String(summary.patient).trim() : '[Nom]';
+    const ddn = (summary.ddn && String(summary.ddn).trim()) ? String(summary.ddn).trim() : '[DDN]';
+    const motifTxt = (summary.motif && String(summary.motif).trim()) ? String(summary.motif).trim().replace(/\.$/, '') : '[motif]';
+    output += `Je vois ce jour Mme ${nom}, née le ${ddn}, pour : ${motifTxt}.\n\n`;
+
     const sec = (title, val) => {
-      const t = asLines(val);
+      const t = asSentences(val);
       if (!t) return;
       output += title + '\n' + line + t + '\n\n';
     };
 
-    sec('MOTIF DE CONSULTATION', summary.motif);
     sec('ANTÉCÉDENTS', summary.antecedents);
     sec('EXAMEN CLINIQUE', summary.examen);
     sec('CONCLUSION / DIAGNOSTIC', summary.conclusion);
