@@ -1,15 +1,14 @@
 /**
- * NeoMinutes - Service Export PDF
- * Génération de documents PDF avec pdfkit.
- * mode: 'summary' (compte-rendu seul) · 'transcript' (transcription seule) · 'letter' (courrier).
- * Rétro-compatible : si includeTranscript=true en mode summary, la transcription est ajoutée en fin.
+ * NeoMinutes - Service Export PDF (pdfkit).
+ * mode: 'summary' | 'transcript' | 'letter'.
+ * En mode summary, si fullSummary (texte déjà mis en forme) est fourni, on l'utilise
+ * directement (fiable) ; sinon on reformate via templates.formatSummary.
  */
 
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
-
 const templates = require('../services/summarize');
 
 async function generatePdf(options) {
@@ -17,16 +16,15 @@ async function generatePdf(options) {
     recording,
     transcript,
     summary,
+    fullSummary = null,
     templateId,
     includeTranscript = false,
-    mode = 'summary',      // 'summary' | 'transcript' | 'letter'
-    letterText = ''        // utilisé si mode === 'letter'
+    mode = 'summary',
+    letterText = ''
   } = options;
 
   const outputDir = path.join(__dirname, '..', '..', 'exports');
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
   const suffix = mode === 'transcript' ? 'transcription' : (mode === 'letter' ? 'courrier' : 'cr');
   const filename = `neominutes-${recording.id}-${suffix}-${Date.now()}.pdf`;
@@ -36,152 +34,125 @@ async function generatePdf(options) {
     const doc = new PDFDocument({
       size: 'A4',
       bufferPages: true,
-      margins: { top: 50, bottom: 50, left: 50, right: 50 },
-      info: {
-        Title: recording.title || 'Document NeoMinutes',
-        Author: 'NeoMinutes',
-        Creator: 'NeoMinutes'
-      }
+      margins: { top: 55, bottom: 55, left: 55, right: 55 },
+      info: { Title: recording.title || 'Document NeoMinutes', Author: 'NeoMinutes', Creator: 'NeoMinutes' }
     });
 
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
     const styles = {
-      title: { size: 22, bold: true, color: '#1a1a2e' },
-      sectionTitle: { size: 14, bold: true, color: '#1a1a2e' },
-      body: { size: 11, color: '#333333' },
+      title: { size: 20, color: '#1a1a2e' },
+      sectionTitle: { size: 13, color: '#1a4b8c' },
+      body: { size: 11, color: '#222222' },
       small: { size: 9, color: '#666666' },
       caption: { size: 10, color: '#666666', italic: true }
     };
 
     const addText = (text, opts = {}) => {
-      doc.fontSize(opts.size || 11).fillColor(opts.color || '#333333');
+      doc.fontSize(opts.size || 11).fillColor(opts.color || '#222222');
       if (opts.bold) doc.font('Helvetica-Bold');
       else if (opts.italic) doc.font('Helvetica-Oblique');
       else doc.font('Helvetica');
       doc.text(text, opts);
     };
+    const pageBreak = (h) => { if (doc.y + h > doc.page.height - 55) doc.addPage(); };
+    const dateStr = new Date(recording.createdAt || Date.now()).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    const checkPageBreak = (height) => {
-      if (doc.y + height > doc.page.height - 50) doc.addPage();
-    };
-
-    const dateStr = new Date(recording.createdAt || Date.now()).toLocaleDateString('fr-FR', {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-
-    // ============ MODE COURRIER ============
-    if (mode === 'letter') {
-      addText(letterText || '', { ...styles.body, lineGap: 3, align: 'left' });
+    const finish = () => {
       finalizeFooter(doc);
       doc.end();
       stream.on('close', () => resolve({ filePath, fileSize: fs.statSync(filePath).size, filename }));
       stream.on('error', reject);
+    };
+
+    // ============ COURRIER ============
+    if (mode === 'letter') {
+      const lines = String(letterText || '').split('\n');
+      lines.forEach((raw, i) => {
+        const l = raw.trim();
+        if (i === 0 && l) { addText(l, { ...styles.title, bold: true }); doc.moveDown(0.3); return; }
+        if (l === '') { doc.moveDown(0.5); return; }
+        addText(l, { ...styles.body, lineGap: 2 });
+        pageBreak(20);
+      });
+      finish();
       return;
     }
 
     // ============ EN-TÊTE (summary / transcript) ============
-    doc.fontSize(styles.title.size).fillColor(styles.title.color).font('Helvetica-Bold')
-       .text(recording.title || (mode === 'transcript' ? 'Transcription' : 'Compte-rendu'), { align: 'center' });
-    doc.moveDown(0.4);
+    addText(recording.title || (mode === 'transcript' ? 'Transcription' : 'Compte-rendu'), { ...styles.title, bold: true, align: 'center' });
+    doc.moveDown(0.3);
     addText(`${mode === 'transcript' ? 'Transcription' : 'Compte-rendu'} • ${dateStr}`, { ...styles.caption, align: 'center' });
     doc.moveDown(0.5);
-    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke('#cccccc');
+    doc.moveTo(55, doc.y).lineTo(doc.page.width - 55, doc.y).stroke('#cccccc');
     doc.moveDown(0.6);
 
-    // ============ MODE TRANSCRIPTION SEULE ============
+    // ============ TRANSCRIPTION SEULE ============
     if (mode === 'transcript') {
-      const paras = String(transcript || '').split(/\n\n+/);
-      for (const para of paras) {
-        if (para.trim()) {
-          addText(para.trim(), { ...styles.body, lineGap: 2 });
-          doc.moveDown(0.3);
-          checkPageBreak(30);
-        }
-      }
-      finalizeFooter(doc);
-      doc.end();
-      stream.on('close', () => resolve({ filePath, fileSize: fs.statSync(filePath).size, filename }));
-      stream.on('error', reject);
+      String(transcript || '').split(/\n\n+/).forEach(p => {
+        if (p.trim()) { addText(p.trim(), { ...styles.body, lineGap: 2 }); doc.moveDown(0.3); pageBreak(30); }
+      });
+      finish();
       return;
     }
 
-    // ============ MODE COMPTE-RENDU ============
-    if (summary) {
-      const formattedSummary = templates.formatSummary(templateId, summary);
-      const lines = formattedSummary.split('\n');
-      for (const line of lines) {
-        if (line.startsWith('═') || line.startsWith('─') || line.trim() === '') continue;
-        if (line.startsWith('**') && line.endsWith('**')) {
-          doc.moveDown(0.5); addText(line.replace(/\*\*/g, ''), styles.sectionTitle); doc.moveDown(0.3);
-        } else if (line.startsWith('## ')) {
-          doc.moveDown(0.5); addText(line.replace('## ', ''), styles.sectionTitle); doc.moveDown(0.3);
-        } else if (line.startsWith('### ')) {
-          addText(line.replace('### ', ''), { ...styles.body, bold: true });
-        } else if (line === line.toUpperCase() && line.trim().length > 3 && line.trim().length < 60 && !/[.:]/.test(line)) {
-          doc.moveDown(0.4); addText(line.trim(), styles.sectionTitle); doc.moveDown(0.2);
-        } else if (line.startsWith('- ') || line.match(/^\d+\.\s/)) {
-          addText(line.replace(/^[-\d.]+\s*/, '  • '), styles.body);
-        } else {
-          addText(line, styles.body);
-        }
-        checkPageBreak(20);
-      }
+    // ============ COMPTE-RENDU ============
+    // Texte déjà formaté (fiable) sinon on reformate.
+    const crText = fullSummary || (summary ? templates.formatSummary(templateId, summary) : '');
+    for (const line of String(crText).split('\n')) {
+      const l = line.replace(/\s+$/, '');
+      if (l.startsWith('═') || l.startsWith('─') || l.trim() === '') { if (l.trim() === '') doc.moveDown(0.2); continue; }
+      // Titre de rubrique : MAJUSCULES courtes sans ponctuation de phrase
+      const isSection = l === l.toUpperCase() && l.trim().length > 2 && l.trim().length < 60 && !/[.]/.test(l);
+      if (l.startsWith('## ')) { doc.moveDown(0.4); addText(l.replace('## ', ''), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.2); }
+      else if (isSection) { doc.moveDown(0.4); addText(l.trim(), { ...styles.sectionTitle, bold: true }); doc.moveDown(0.15); }
+      else if (l.startsWith('- ') || l.match(/^\d+\.\s/)) { addText(l.replace(/^[-\d.]+\s*/, '•  '), { ...styles.body, indent: 8 }); }
+      else { addText(l, styles.body); }
+      pageBreak(20);
     }
 
-    // Transcription en annexe UNIQUEMENT si explicitement demandé (défaut = non)
     if (includeTranscript && transcript) {
       doc.addPage();
-      addText('Transcription complète (annexe)', styles.sectionTitle);
+      addText('Transcription complète (annexe)', { ...styles.sectionTitle, bold: true });
       doc.moveDown(0.3);
-      const transcriptParagraphs = String(transcript).split(/\n\n+/);
-      for (const para of transcriptParagraphs) {
-        if (para.trim()) {
-          addText(para.trim(), { ...styles.small, lineGap: 2 });
-          doc.moveDown(0.3);
-          checkPageBreak(30);
-        }
-      }
+      String(transcript).split(/\n\n+/).forEach(p => {
+        if (p.trim()) { addText(p.trim(), { ...styles.small, lineGap: 2 }); doc.moveDown(0.3); pageBreak(30); }
+      });
     }
 
-    finalizeFooter(doc);
-    doc.end();
-    stream.on('close', () => {
-      const stats = fs.statSync(filePath);
-      console.log(`[Export] PDF généré (${mode}): ${filePath} (${stats.size} bytes)`);
-      resolve({ filePath, fileSize: stats.size, filename });
-    });
-    stream.on('error', (err) => { console.error('[Export] Erreur PDF:', err); reject(err); });
+    finish();
   });
 }
 
+// Footer robuste : compatible pdfkit où les pages sont indexées à partir de 0 OU 1.
 function finalizeFooter(doc) {
   try {
-    const range = doc.bufferedPageRange();
+    const range = doc.bufferedPageRange(); // { start, count }
+    if (!range || !range.count) return;
     for (let i = 0; i < range.count; i++) {
-      doc.switchToPage(range.start + i);
-      doc.fontSize(8).fillColor('#999999').text(
-        'Généré par NeoMinutes',
-        50, doc.page.height - 30, { align: 'center' }
-      );
+      const pageIndex = range.start + i;
+      try {
+        doc.switchToPage(pageIndex);
+        doc.fontSize(8).fillColor('#999999').font('Helvetica')
+          .text('Généré par NeoMinutes', 55, doc.page.height - 35, { align: 'center' });
+      } catch (inner) { /* page hors buffer : on ignore cette page */ }
     }
   } catch (e) {
-    console.warn('[Export] Footer pages ignoré:', e.message);
+    console.warn('[Export] Footer ignoré:', e.message);
   }
 }
 
 async function generateFromData(recordingId, data) {
   return generatePdf({
     recording: {
-      id: recordingId,
-      title: data.title,
+      id: recordingId, title: data.title,
       createdAt: data.createdAt || new Date().toISOString(),
-      participants: data.participants || [],
-      tags: data.tags || []
+      participants: data.participants || [], tags: data.tags || []
     },
     transcript: data.transcript || '',
     summary: data.summary,
+    fullSummary: data.fullSummary || null,
     templateId: data.templateId || 'auto',
     includeTranscript: data.includeTranscript || false,
     mode: data.mode || 'summary',
@@ -189,8 +160,4 @@ async function generateFromData(recordingId, data) {
   });
 }
 
-module.exports = {
-  generatePdf,
-  generateFromData,
-  isConfigured: () => !!PDFDocument
-};
+module.exports = { generatePdf, generateFromData, isConfigured: () => !!PDFDocument };
