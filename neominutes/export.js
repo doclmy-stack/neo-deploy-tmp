@@ -1,13 +1,8 @@
 /**
  * NeoMinutes - Routes: Export
  * content: 'summary' (défaut) | 'transcript' | 'letter'
- * ⚠️ Pour le PDF/Word en mode summary, on réutilise le full_summary DÉJÀ FORMATÉ
- * (généré avec le bon template) au lieu de le refabriquer avec un template éventuellement
- * différent (sinon le doc ne contient que les mots-clés = bug PDF vide).
- *
- * SIGNATURE praticien : configurable via .env
- *   SIGN_NAME, SIGN_SPECIALTY, SIGN_EMAIL, SIGN_PHONE
- * (valeurs par défaut = Dr Laurent MAMY).
+ * PDF summary : réutilise le full_summary DÉJÀ FORMATÉ (fiable).
+ * SIGNATURE praticien via .env : SIGN_NAME, SIGN_SPECIALTY, SIGN_EMAIL, SIGN_PHONE.
  */
 
 const express = require('express');
@@ -21,7 +16,6 @@ const storage = require('../services/storage');
 const aiText = require('../services/aiText');
 const { fireWebhookEvent } = require('../services/webhook');
 
-// Bloc signature (depuis .env, sinon défauts Dr Laurent MAMY)
 function signatureBlock() {
   const name = process.env.SIGN_NAME || 'Dr Laurent MAMY';
   const spec = process.env.SIGN_SPECIALTY || 'Gynécologue-obstétricien';
@@ -35,33 +29,28 @@ function signatureBlock() {
 }
 
 /**
- * Courrier médical STRUCTURÉ et concis, rédigé par l'IA à partir du compte-rendu.
- * La signature est AJOUTÉE par le code (pas par l'IA) pour être exacte.
+ * Courrier médical : commence par "Je vois Mme [Nom], née le [DDN], pour : [motif]."
+ * Corps rédigé (phrases), signature ajoutée par le code.
  */
 async function buildLetterText(recording, summaryData, fullSummary, templateId, recipient) {
   const crText = fullSummary || templates.formatSummary(templateId, summaryData || {});
   const dest = (recipient && recipient.name) ? recipient.name : 'Cher(e) Confrère';
-  const dateStr = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
-  const system = `Tu es médecin. Tu rédiges une COURTE lettre confraternelle de SUIVI (compte-rendu adressé au médecin traitant / correspondant), à partir d'un compte-rendu de consultation. Ce n'est PAS une lettre d'orientation : la patiente n'est pas "adressée", on informe le confrère du suivi.
+  const system = `Tu es médecin (gynécologue-obstétricien). Tu rédiges une COURTE lettre confraternelle à un confrère (médecin traitant / correspondant), à partir d'un compte-rendu de consultation.
 
-STRUCTURE EXACTE (rien d'autre, pas de markdown, pas d'astérisques, PAS de signature — elle sera ajoutée automatiquement) :
-Ligne 1 : Courrier médical
-Ligne 2 : ${dateStr}
-Ligne 3 : (vide)
-Ligne 4 : ${dest},
-Ligne 5 : (vide)
-Puis un corps SYNTHÉTIQUE en phrases courtes (pas de puces), 4 à 7 lignes maximum, couvrant dans l'ordre :
-- 1 phrase : "Je vous informe du suivi de votre patiente [Nom si connu], vue en consultation pour [motif]."
-- 1 à 2 phrases : les éléments cliniques essentiels et la conclusion (diagnostic).
-- 1 phrase : "Conduite à tenir : [suivi/examens]."
-- 1 phrase : "Traitement prescrit : [médicaments avec posologie]."
-NE METS AUCUNE formule de politesse finale ni signature (le système les ajoute).
+STRUCTURE EXACTE (rien d'autre, pas de markdown, pas d'astérisques, PAS de signature — ajoutée automatiquement) :
+Ligne 1 : ${dest},
+Ligne 2 : (vide)
+Puis le corps en PHRASES (une idée par phrase, pas de puces) :
+- 1re phrase OBLIGATOIRE, commence EXACTEMENT par : "Je vois ce jour Mme [Nom], née le [DDN], pour [motif]." (utilise le nom et la date de naissance s'ils figurent dans le compte-rendu ; sinon écris "Mme [Nom]" et "née le [DDN]" tels quels).
+- 1 à 3 phrases : éléments cliniques essentiels et conclusion (diagnostic).
+- 1 phrase commençant par "Conduite à tenir :" (suivi / examens).
+- 1 phrase commençant par "Traitement prescrit :" (médicaments avec posologie).
 
-RÈGLES : COURT et factuel. Interdits : "je vous adresse la patiente", "je vous remercie de votre attention", "n'hésitez pas à me contacter", "notre réunion". Reste fidèle au compte-rendu, n'invente rien, corrige les noms de médicaments.`;
-  const user = `Compte-rendu source :\n${crText}\n\nRédige la lettre de suivi COURTE (sans signature) en respectant exactement la structure.`;
+RÈGLES : COURT et factuel. INTERDITS : "je vous informe du suivi", "je vous adresse la patiente", "je vous remercie de votre attention", "n'hésitez pas à me contacter". Reste fidèle au compte-rendu, n'invente rien, corrige les noms de médicaments. Aucune formule de politesse finale ni signature.`;
+  const user = `Compte-rendu source :\n${crText}\n\nRédige la lettre COURTE (sans signature) en respectant la structure, en commençant le corps par "Je vois ce jour Mme ...".`;
   let body = await aiText.chat(system, user, { temperature: 0.2, maxTokens: 900 });
   body = (body || crText).trim();
-  // Retire une éventuelle signature/politesse que l'IA aurait ajoutée malgré tout
+  // Retire toute signature/politesse que l'IA aurait ajoutée
   body = body.replace(/\n+\s*(bien\s+confraternellement|cordialement|confraternellement|dr\.?\b|dr\s)[\s\S]*$/i, '').trim();
   return body + '\n\n' + signatureBlock();
 }
@@ -91,14 +80,12 @@ router.post('/recordings/:id/export', async (req, res) => {
       transcript = transcriptData?.content || null;
     }
 
-    // Résumé : on récupère data + full_summary + le template AVEC LEQUEL il a été généré
     let summaryData = null, fullSummary = null;
     let templateId = template || 'auto';
     if (content !== 'transcript') {
       const s = recordingModel.getSummary(id);
       summaryData = s?.data || null;
       fullSummary = s?.full_summary || s?.fullSummary || null;
-      // ⚠️ priorité au template réellement utilisé pour générer (sinon PDF vide)
       if (s && s.template) templateId = s.template;
       if (!summaryData && !fullSummary) {
         return res.status(400).json({ error: 'Pas de résumé', message: 'Générez d\'abord un compte-rendu' });
@@ -115,7 +102,6 @@ router.post('/recordings/:id/export', async (req, res) => {
       } else if (content === 'transcript') {
         result = await exportPdf.generatePdf({ recording, transcript, mode: 'transcript' });
       } else {
-        // summary : on passe le texte DÉJÀ formaté (fiable)
         result = await exportPdf.generatePdf({ recording, summary: summaryData, fullSummary, templateId, mode: 'summary', includeTranscript, transcript });
       }
     } else if (format === 'docx') {
