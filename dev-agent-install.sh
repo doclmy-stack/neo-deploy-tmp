@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Installateur de l'agent DEV Neocosive (boîte aux lettres GitHub).
-# A lancer UNE fois sur le VPS de dev, en root :
-#   curl -fsSL https://raw.githubusercontent.com/doclmy-stack/neo-deploy-tmp/main/dev-agent-install.sh | sudo bash
-# Aucun secret n'est contenu ici : le token GitHub est saisi de façon masquée.
+# Mode interactif :  sudo bash /tmp/agent.sh
+# Mode automatique : sudo bash -c "GH_USER='doclmy-stack' GH_TOKEN='xxxx' bash /tmp/agent.sh"
 set -euo pipefail
 
 echo "==================================================="
@@ -11,17 +10,23 @@ echo "==================================================="
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "ERREUR : relance avec sudo."
-  echo "  curl -fsSL https://raw.githubusercontent.com/doclmy-stack/neo-deploy-tmp/main/dev-agent-install.sh | sudo bash"
   exit 1
 fi
 
 GH_USER_DEFAULT="doclmy-stack"
 REPO="neo-dev-ops"
+GH_USER="${GH_USER:-}"
+GH_TOKEN="${GH_TOKEN:-}"
 
-read -rp "Utilisateur GitHub [${GH_USER_DEFAULT}] : " GH_USER
+if [ -z "${GH_USER}" ]; then
+  read -rp "Utilisateur GitHub [${GH_USER_DEFAULT}] : " GH_USER || true
+fi
 GH_USER="${GH_USER:-$GH_USER_DEFAULT}"
-read -rsp "Token GitHub (fine-grained : repo ${REPO}, Contents = Read/Write) : " GH_TOKEN
-echo
+
+if [ -z "${GH_TOKEN}" ]; then
+  read -rsp "Token GitHub (fine-grained : repo ${REPO}, Contents = Read/Write) : " GH_TOKEN || true
+  echo
+fi
 if [ -z "${GH_TOKEN}" ]; then echo "Token vide -> abandon."; exit 1; fi
 
 export DEBIAN_FRONTEND=noninteractive
@@ -75,6 +80,5 @@ systemctl enable --now neo-runner.timer
 
 echo
 echo ">>> Agent installé et ACTIF (vérifie l'inbox toutes les 30 s)."
-echo ">>> Test rapide :"
 systemctl list-timers neo-runner.timer --no-pager 2>/dev/null | head -n 3 || true
 echo ">>> Fin."
